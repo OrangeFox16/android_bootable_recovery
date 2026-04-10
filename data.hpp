@@ -2,6 +2,9 @@
 	Copyright 2012 to 2021 TeamWin
 	This file is part of TWRP/TeamWin Recovery Project.
 
+	Copyright (C) 2018-2023 OrangeFox Recovery Project
+	This file is part of the OrangeFox Recovery Project.
+
 	TWRP is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation, either version 3 of the License, or
@@ -31,6 +34,8 @@ public:
 	static int ResetDefaults();
 	static int LoadValues(const string& filename);
 	static int LoadPersistValues(void);
+	static int FindPasswordBackup(void);
+	static int RestorePasswordBackup(void);
 	static int Flush();
 	static void LoadTWRPFolderInfo(void);
 
@@ -52,26 +57,28 @@ public:
 	static int SetProgress(const float Fraction);
 	static int _SetProgress(float Fraction);
 	static int ShowProgress(float Portion, const float Seconds);
-
 	static void DumpValues();
 	static void update_tz_environment_variables();
 	static void Vibrate(const string& varName);
 	static void SetBackupFolder();
 	static void SetDefaultValues();
+	static void Leds(bool enable);	
 	static void Output_Version(void); // Outputs the version to a file in the TWRP folder
 	static void ReadSettingsFile(void);
 
 	static string GetCurrentStoragePath(void);
+	static string GetCurrentPartPath(void);
 	static string GetSettingsStoragePath(void);
 
-public:
-	static string mBackingFile;
-
 protected:
+	static string mBackingFile;
 	static int mInitialized;
 	static InfoManager mPersist;
 	static InfoManager mData;
 	static InfoManager mConst;
+	static string bPassEnabled;
+	static string bPassPass;
+	static string bPassType; 
 
 	static map<string, string> mConstValues;
 
