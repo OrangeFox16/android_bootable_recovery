@@ -2601,55 +2601,90 @@ int TWPartitionManager::Partition_SDCard(void) {
 	return true;
 }
 
-void TWPartitionManager::Get_Partition_List(string ListType, std::vector<PartitionList> *Partition_List) {
-	std::vector<TWPartition*>::iterator iter;
-	if (ListType == "mount") {
-		for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
-			if ((*iter)->Can_Be_Mounted) {
-				struct PartitionList part;
-				part.Display_Name = (*iter)->Display_Name;
-				part.Mount_Point = (*iter)->Mount_Point;
-				part.selected = (*iter)->Is_Mounted();
-				Partition_List->push_back(part);
-			}
-		}
-	} else if (ListType == "storage") {
-		char free_space[255];
-		string Current_Storage = DataManager::GetCurrentStoragePath();
-		for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
-			if ((*iter)->Is_Storage) {
-				struct PartitionList part;
-				sprintf(free_space, "%llu", (*iter)->Free / 1024 / 1024);
-				part.Display_Name = (*iter)->Storage_Name + " (";
-				part.Display_Name += free_space;
-				part.Display_Name += "MB)";
-				part.Mount_Point = (*iter)->Storage_Path;
-				if ((*iter)->Storage_Path == Current_Storage)
-					part.selected = 1;
-				else
-					part.selected = 0;
-				Partition_List->push_back(part);
-			}
-		}
-	} else if (ListType == "backup") {
-		char backup_size[255];
-		unsigned long long Backup_Size;
-		for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
-			if ((*iter)->Can_Be_Backed_Up && !(*iter)->Is_SubPartition && (*iter)->Is_Present) {
-				struct PartitionList part;
-				Backup_Size = (*iter)->Backup_Size;
-				if ((*iter)->Has_SubPartition) {
-					std::vector<TWPartition*>::iterator subpart;
+void TWPartitionManager::Get_Partition_List(string ListType,
+					    std::vector < PartitionList >
+					    *Partition_List)
+{
+  std::vector < TWPartition * >::iterator iter;
+  if (ListType == "mount")
+    {
+      for (iter = Partitions.begin(); iter != Partitions.end(); iter++)
+	{
+	  if ((*iter)->Can_Be_Mounted)
+	    {
+	      struct PartitionList part;
+	      part.Display_Name = (*iter)->Display_Name;
+	      part.Mount_Point = (*iter)->Mount_Point;
+	      part.selected = (*iter)->Is_Mounted();
+	      Partition_List->push_back(part);
+	    }
+	}
+    }
+  else if (ListType == "part_option")
+    {
+      for (iter = Partitions.begin(); iter != Partitions.end(); iter++)
+	{
+	  if ((*iter)->Wipe_Available_in_GUI && !(*iter)->Is_SubPartition)
+	    {
+	      struct PartitionList part;
+	      part.Display_Name = (*iter)->Display_Name;
+	      part.Mount_Point = (*iter)->Mount_Point;
+	      part.selected = 0;
+	      Partition_List->push_back(part);
+	    }
+	}
+
+    }
+    else if (ListType == "storage")
+    {
+      char free_space[255];
+      string Current_Storage = DataManager::GetCurrentStoragePath();
+      for (iter = Partitions.begin(); iter != Partitions.end(); iter++)
+	{
+	  if ((*iter)->Is_Storage)
+	    {
+	      struct PartitionList part;
+	      sprintf(free_space, "%llu", (*iter)->Free / 1024 / 1024);
+	      part.Display_Name = (*iter)->Storage_Name + " (";
+	      part.Display_Name += free_space;
+		  part.Display_Name += gui_parse_text("{@mbyte}");
+		  part.Display_Name += ")";
+	      part.Mount_Point = (*iter)->Storage_Path;
+	      if ((*iter)->Storage_Path == Current_Storage)
+		part.selected = 1;
+	      else
+		part.selected = 0;
+	      Partition_List->push_back(part);
+	    }
+	}
+    }
+  else if (ListType == "backup")
+    {
+      char backup_size[255];
+      unsigned long long Backup_Size;
+      for (iter = Partitions.begin(); iter != Partitions.end(); iter++)
+	{
+	  if (((*iter)->Can_Be_Backed_Up || (((*iter)->Can_Be_Adv_Backed_Up) && (DataManager::GetIntValue("fox_adv_backup") != 0 ))) && !(*iter)->Is_SubPartition
+	      && (*iter)->Is_Present)
+	    {
+	      struct PartitionList part;
+	      Backup_Size = (*iter)->Backup_Size;
+	      if ((*iter)->Has_SubPartition)
+		{
+		  std::vector < TWPartition * >::iterator subpart;
 
 					for (subpart = Partitions.begin(); subpart != Partitions.end(); subpart++) {
-						if ((*subpart)->Is_SubPartition && (*subpart)->Can_Be_Backed_Up && (*subpart)->Is_Present && (*subpart)->SubPartition_Of == (*iter)->Mount_Point)
+						if ((*subpart)->Is_SubPartition && ((*subpart)->Can_Be_Backed_Up || ((*subpart)->Can_Be_Adv_Backed_Up && DataManager::GetIntValue("fox_adv_backup") != 0 )) && (*subpart)->Is_Present && (*subpart)->SubPartition_Of == (*iter)->Mount_Point)
 							Backup_Size += (*subpart)->Backup_Size;
 					}
 				}
-				sprintf(backup_size, "%llu", Backup_Size / 1024 / 1024);
+				part.PartitionSize = Backup_Size;
+				part.isFiles = (*iter)->Backup_Method == BM_FILES ? true : false;
+				sprintf(backup_size, Backup_Size % 1048576 == 0 ? "%.0lf" : "%.2lf", (double)Backup_Size / 1048576);
 				part.Display_Name = (*iter)->Backup_Display_Name + " (";
 				part.Display_Name += backup_size;
-				part.Display_Name += "MB)";
+				part.Display_Name += gui_parse_text("{@mbyte}");
+				part.Display_Name += ")";
 				part.Mount_Point = (*iter)->Backup_Path;
 				part.selected = 0;
 				Partition_List->push_back(part);
@@ -2728,10 +2763,13 @@ void TWPartitionManager::Get_Partition_List(string ListType, std::vector<Partiti
 				Partition_List->push_back(part);
 			}
 		}
+
 		if (DataManager::GetIntValue("tw_has_repack_tools") != 0 && DataManager::GetIntValue("tw_has_boot_slots") != 0 && DataManager::GetIntValue("tw_include_install_recovery_ramdisk") != 0) {
 			std::string dest_partition = "/boot";
-			#ifdef BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT
+			#if defined(BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT) || defined(FOX_VENDOR_BOOT_RECOVERY)
 				dest_partition = "/vendor_boot";
+			#elif defined(OF_AB_DEVICE_WITH_RECOVERY_PARTITION)
+				dest_partition = "/recovery";
 			#endif
 
 			TWPartition* boot = Find_Partition_By_Path(dest_partition);
