@@ -341,9 +341,33 @@ static void reboot() {
 		TWFunc::tw_reboot(rb_system);
 }
 
+// check whether we should reload the themes
+static bool Fox_CheckReload_Themes() {
+  if (DataManager::GetStrValue("data_decrypted") == "1" 
+  || DataManager::GetIntValue(TW_IS_FBE) == 1 
+  || TWFunc::Fox_Property_Get("orangefox.mount_to_decrypt") == "1") {
+	DataManager::SetValue(FOX_ENCRYPTED_DEVICE, "1");
+    }
+#if defined(FOX_ALLOW_EARLY_SETTINGS_LOAD) && defined(FOX_SETTINGS_ROOT_DIRECTORY)
+  return false;
+#else
+  return (TWFunc::Path_Exists(FOX_THEME_PATH) || TWFunc::Path_Exists(FOX_NAVBAR_PATH));
+#endif
+}
+
+// remove a problem file injected into vAB recovery ramdisk by some QPR2 ROMs
+static void Fox_Remove_Problematic_File() {
+#ifdef FOX_VIRTUAL_AB_DEVICE
+	std::string f = "/system/etc/vintf/manifest/boot-service.qti.xml";
+	android::base::RemoveFileIfExists(f);
+#endif
+}
+
 int main(int argc, char **argv) {
-	// Recovery needs to install world-readable files, so clear umask
-	// set by init
+	// avoid Android 15 QPR2 problem with rogue xml file
+	Fox_Remove_Problematic_File();
+
+	// Recovery needs to install world-readable files, so clear umask set by init
 	umask(0);
 	Log_Offset = 0;
 
@@ -359,7 +383,7 @@ int main(int argc, char **argv) {
 	if (argc == 3 && strcmp(argv[1], "--adbd") == 0) {
 		property_set("ctl.stop", "adbd");
 #ifdef TW_USE_NEW_MINADBD
-		//adb_server_main(0, DEFAULT_ADB_PORT, -1); TODO fix this for android8
+		// adb_server_main(0, DEFAULT_ADB_PORT, -1);
 		// minadbd_main();
 #else
 		adb_main(argv[2]);
@@ -371,27 +395,95 @@ int main(int argc, char **argv) {
 	datamedia = true;
 #endif
 
-	property_set("ro.twrp.boot", "1");
-    property_set("ro.twrp.version", TWFunc::Get_TWRP_Version_Str().c_str());
+	// Fox stuff
+	TWFunc::Set_Sbin_Dir_Executable_Flags();
+	property_set("ro.orangefox.boot", "1");
+	property_set("ro.orangefox.type", FOX_BUILD_TYPE);
+	property_set("ro.orangefox.variant", FOX_VARIANT);
+	property_set("ro.orangefox.build", "orangefox");
+	property_set("ro.orangefox.release.version", FOX_BUILD);
+	TWFunc::Fox_Property_Set("ro.orangefox.boot.header.version", std::to_string(BOARD_BOOT_HEADER_VERSION));
 
-#ifdef TARGET_OTA_ASSERT_DEVICE
+#ifdef FOX_TARGET_DEVICES
+	property_set("ro.twrp.target.devices", FOX_TARGET_DEVICES);
+#elif defined(TARGET_OTA_ASSERT_DEVICE)
 	property_set("ro.twrp.target.devices", TARGET_OTA_ASSERT_DEVICE);
 #endif
 
+#ifdef OF_DYNAMIC_FULL_SIZE
+	TWFunc::Fox_Property_Set("ro.dynamic.full_size", OF_DYNAMIC_FULL_SIZE);
+#endif
+
+#ifdef OF_SKIP_FBE_DECRYPTION
+	TWFunc::Fox_Property_Set("of_skip_fbe_decryption", "true");
+#endif
+
+#ifdef OF_DEFAULT_KEYMASTER_VERSION
+	android::base::SetProperty(TW_KEYMASTER_VERSION_PROP, OF_DEFAULT_KEYMASTER_VERSION);
+#endif
+
+#ifdef FOX_VIRTUAL_AB_DEVICE
+	property_set("ro.orangefox.virtual_ab", "1");
+#endif
+
+#ifdef FOX_VANILLA_BUILD
+	property_set("ro.orangefox.vanilla", "1");
+#endif
+
+#ifdef TW_INCLUDE_CRYPTO
+	property_set("ro.orangefox.crypto_enabled", "1");
+#else
+	property_set("ro.orangefox.crypto_enabled", "0");
+#endif
+
+	property_set("ro.twrp.boot", "1");
+	property_set("ro.twrp.version", TWFunc::Get_TWRP_Version_Str().c_str());
+
+	string fox_cfg = Fox_Cfg;
+	if (!TWFunc::Path_Exists(fox_cfg))
+		fox_cfg = "/system" + Fox_Cfg;
+
+	string fox_build_date = TWFunc::File_Property_Get(fox_cfg, "FOX_BUILD_DATE");
+	if (fox_build_date.empty()) {
+		fox_build_date = TWFunc::File_Property_Get("/default.prop", "ro.bootimage.build.date");
+		if (fox_build_date.empty()) {
+			fox_build_date = TWFunc::File_Property_Get("/default.prop", "ro.build.date");
+			if (fox_build_date.empty())
+				fox_build_date = "[no date!]";
+		}
+	}
+
+	DataManager::SetValue("FOX_BUILD_DATE_REAL", fox_build_date);
+
+	// Set the start date to the recovery's build date
+	TWFunc::Reset_Clock();
+
+	DataManager::GetValue(FOX_COMPATIBILITY_DEVICE, Fox_Current_Device);
+	printf("Starting OrangeFox Recovery %s [%s, core: %s] (built on %s for %s [dev_ver: %s]; pid %d)\n",
+		FOX_BUILD, FOX_VARIANT, FOX_MAIN_VERSION_STR, fox_build_date.c_str(),
+		Fox_Current_Device.c_str(), FOX_CURRENT_DEV_STR, getpid());
+
 	time_t StartupTime = time(NULL);
-    printf("Starting TWRP %s-%s on %s (pid %d)\n", TWFunc::Get_TWRP_Version_Str().c_str(), TW_GIT_REVISION, ctime(&StartupTime), getpid());
+	printf("Starting TWRP %s-%s on %s (pid %d)\n",
+		TWFunc::Get_TWRP_Version_Str().c_str(), TW_GIT_REVISION, ctime(&StartupTime), getpid());
+
+	// refresh the specific device codename if we have a generic unified codename
+	TWFunc::Fox_Set_Current_Device_CodeName();
 
 	// Load default values to set DataManager constants and handle ifdefs
 	DataManager::SetDefaultValues();
+
 	startupArgs startup;
 	startup.parse(&argc, &argv);
 	android::base::SetProperty(TW_FASTBOOT_MODE_PROP, startup.Get_Fastboot_Mode() ? "1" : "0");
+
 	printf("=> Linking mtab\n");
 	symlink("/proc/mounts", "/etc/mtab");
+
 	std::string fstab_filename = "/etc/twrp.fstab";
-	if (!TWFunc::Path_Exists(fstab_filename)) {
+	if (!TWFunc::Path_Exists(fstab_filename))
 		fstab_filename = "/etc/recovery.fstab";
-	}
+
 	printf("=> Processing %s\n", fstab_filename.c_str());
 	if (!PartitionManager.Process_Fstab(fstab_filename, 1, !startup.Get_Fastboot_Mode())) {
 		LOGERR("Failing out of recovery due to problem with fstab.\n");
@@ -407,22 +499,27 @@ int main(int argc, char **argv) {
 			"/odm"
 		};
 		for (auto& preparePart : prepareParts) {
-			TWPartition *part = PartitionManager.Find_Partition_By_Path(preparePart);
-			if (part) PartitionManager.Prepare_Super_Volume(part);
+			TWPartition* part = PartitionManager.Find_Partition_By_Path(preparePart);
+			if (part)
+				PartitionManager.Prepare_Super_Volume(part);
 		}
 	}
 #endif
 
+	// start the UI
 	printf("Starting the UI...\n");
 	gui_init();
 
-	if (!startup.Get_Fastboot_Mode()) PartitionManager.Setup_Fstab_Partitions(true);
+	if (!startup.Get_Fastboot_Mode())
+		PartitionManager.Setup_Fstab_Partitions(true);
 
 	// Load up all the resources
 	gui_loadResources();
 
+#ifndef FOX_ALLOW_EARLY_SETTINGS_LOAD
 	DataManager::ReadSettingsFile();
 	PageManager::LoadLanguage(DataManager::GetStrValue("tw_language"));
+#endif
 
 	std::string value;
 	static char charging = ' ';
@@ -436,23 +533,24 @@ int main(int argc, char **argv) {
 #ifdef TW_CUSTOM_BATTERY_PATH
 			string capacity_file = EXPAND(TW_CUSTOM_BATTERY_PATH);
 			capacity_file += "/capacity";
-			FILE * cap = fopen(capacity_file.c_str(),"rt");
+			FILE* cap = fopen(capacity_file.c_str(), "rt");
 #else
-			FILE * cap = fopen("/sys/class/power_supply/battery/capacity","rt");
+			FILE* cap = fopen("/sys/class/power_supply/battery/capacity", "rt");
 #endif
 			if (cap) {
 				fgets(cap_s, 4, cap);
 				fclose(cap);
 				lastVal = atoi(cap_s);
-				if (lastVal > 100)	lastVal = 101;
-				if (lastVal < 0)	lastVal = 0;
+				if (lastVal > 100) lastVal = 101;
+				if (lastVal < 0) lastVal = 0;
 			}
+
 #ifdef TW_CUSTOM_BATTERY_PATH
 			string status_file = EXPAND(TW_CUSTOM_BATTERY_PATH);
 			status_file += "/status";
-			cap = fopen(status_file.c_str(),"rt");
+			cap = fopen(status_file.c_str(), "rt");
 #else
-			cap = fopen("/sys/class/power_supply/battery/status","rt");
+			cap = fopen("/sys/class/power_supply/battery/status", "rt");
 #endif
 			if (cap) {
 				fgets(cap_s, 2, cap);
@@ -464,18 +562,22 @@ int main(int argc, char **argv) {
 			}
 #else
 			auto battery_info = GetBatteryInfo();
-			if (battery_info.charging) {
+			if (battery_info.charging)
 				charging = '+';
-			} else {
+			else
 				charging = ' ';
-			}
 			lastVal = battery_info.capacity;
 #endif
-			// Format the value based on the background updates
-			value = std::to_string(lastVal) + "%" + charging;
-			DataManager::SetValue("tw_battery", value);
 
-			// Sleep for a specified interval (e.g., 1 second) before checking again
+			value = std::to_string(lastVal);
+
+			DataManager::SetValue("tw_battery_charge", value + "%" + charging);
+			DataManager::SetValue("tw_battery", value);
+			DataManager::SetValue("charging_now", (charging == '+') ? "1" : "0");
+
+			// Check usb_otg status
+			PartitionManager.Check_UsbOtg_Status();
+
 			std::this_thread::sleep_for(std::chrono::seconds(1));
 		}
 	};
@@ -483,7 +585,7 @@ int main(int argc, char **argv) {
 	// Create a thread for battery monitoring
 	static std::thread battery_monitor(monitorBatteryInBackground);
 
-	twrpAdbBuFifo *adb_bu_fifo = new twrpAdbBuFifo();
+	twrpAdbBuFifo* adb_bu_fifo = new twrpAdbBuFifo();
 	TWFunc::Clear_Bootloader_Message();
 
 	if (startup.Get_Fastboot_Mode()) {
@@ -496,13 +598,25 @@ int main(int argc, char **argv) {
 		process_recovery_mode(adb_bu_fifo, startup.Should_Skip_Decryption());
 	}
 
-	//PageManager::LoadLanguage(DataManager::GetStrValue("tw_language"));
+#ifndef FOX_ALLOW_EARLY_SETTINGS_LOAD
 	GUIConsole::Translate_Now();
+#endif
 
-	TWFunc::checkforapp(); //Checking compatibility for TWRP app
+	// Fox extra setup
+	TWFunc::Setup_Verity_Forced_Encryption();
+
+	// Checking compatibility for TWRP app
+	TWFunc::checkforapp();
 
 	// Launch the main GUI
-	gui_start();
+	if (Fox_CheckReload_Themes()) {
+		DataManager::SetValue("of_reload_back", "main");
+		PageManager::RequestReload();
+		gui_startPage("reapply_settings", 1, 0);
+	} else {
+		gui_start();
+	}
+
 	delete adb_bu_fifo;
 	TWFunc::Update_Intent_File(startup.Get_Intent());
 	reboot();

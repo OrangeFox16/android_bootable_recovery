@@ -412,6 +412,7 @@ public:
 	bool Unmap_Super_Devices();                                               // Unmap super devices in TWRP
 	bool Check_Pending_Merges();                                              // Check and run pending merges on data for VAB devices
     bool Disable_AVB2(bool Display_Info);                                     // Disable AVB 2.0
+    	void Check_UsbOtg_Status();						  // Checks if usb_otg is connected
 	
 	// missing OrangeFox/TWRP16-added declarations
 	int Run_OTA_Survival_Backup(bool adbbackup);
