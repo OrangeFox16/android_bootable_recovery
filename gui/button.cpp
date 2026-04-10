@@ -2,6 +2,9 @@
 	Copyright 2012 bigbiff/Dees_Troy TeamWin
 	This file is part of TWRP/TeamWin Recovery Project.
 
+	Copyright (C) 2018-2025 OrangeFox Recovery Project
+	This file is part of the OrangeFox Recovery Project.
+
 	TWRP is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation, either version 3 of the License, or
@@ -150,6 +153,22 @@ int GUIButton::Render(void)
 		gr_color(mHighlightColor.red, mHighlightColor.green, mHighlightColor.blue, mHighlightColor.alpha);
 		gr_fill(mRenderX, mRenderY, mRenderW, mRenderH);
 	}
+
+	if (HasFocus()) {
+	    gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
+
+	    const int x = mRenderX + 2;
+	    const int y = mRenderY + 2;
+	    const int w = mRenderW - 4;
+	    const int h = mRenderH - 4;
+	    const int thickness = 3;
+
+	    gr_fill(x, y, w, thickness);
+	    gr_fill(x, y + h - thickness, w, thickness);
+	    gr_fill(x, y, thickness, h);
+	    gr_fill(x + w - thickness, y, thickness, h);
+        }
+
 	mRendered = true;
 	return ret;
 }

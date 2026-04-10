@@ -2,6 +2,9 @@
     Copyright 2012 to 2020 TeamWin
 	This file is part of TWRP/TeamWin Recovery Project.
 
+	Copyright (C) 2018-2025 OrangeFox Recovery Project
+	This file is part of the OrangeFox Recovery Project.
+
 	TWRP is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation, either version 3 of the License, or
@@ -34,9 +37,10 @@ const int SCROLLING_FLOOR = 2; // minimum pixels for scrolling to stop
 GUIScrollList::GUIScrollList(xml_node<>* node) : GUIObject(node)
 {
 	xml_node<>* child;
+	xml_attribute<>* attr;
 
 	firstDisplayedItem = mItemSpacing = mFontHeight = mSeparatorH = y_offset = scrollingSpeed = 0;
-	maxIconWidth = maxIconHeight =  mHeaderIconHeight = mHeaderIconWidth = 0;
+	mPadding = maxIconWidth = maxIconHeight =  mHeaderIconHeight = mHeaderIconWidth = 0;
 	mHeaderSeparatorH = mHeaderH = actualItemHeight = 0;
 	mHeaderIsStatic = false;
 	mBackground = mHeaderIcon = NULL;
@@ -57,6 +61,24 @@ GUIScrollList::GUIScrollList(xml_node<>* node) : GUIObject(node)
 	hasHighlightColor = false;
 	allowSelection = true;
 	selectedItem = NO_ITEM;
+
+	// [f/d] Icon right padding
+	child = FindNode(node, "iconsize");
+	if (child) {
+		mPadding = LoadAttrIntScaleX(child, "padding", mPadding);
+	}
+	
+	// [f/d] Hold item
+	child = FindNode(node, "extra");
+	if (child) {
+		attr = child->first_attribute("hold");
+		if (attr) {
+			itemHold = attr->value();
+			DataManager::SetValue(itemHold, "0");
+		} else {
+			itemHold = "";
+		}
+	}
 
 	// Load header text
 	// note: node can be NULL for the emergency console
@@ -318,11 +340,19 @@ void GUIScrollList::RenderItem(size_t itemindex __unused, int yPos, bool selecte
 	RenderStdItem(yPos, selected, NULL, "implement RenderItem!");
 }
 
-void GUIScrollList::RenderStdItem(int yPos, bool selected, ImageResource* icon, const char* text, int iconAndTextH)
+void GUIScrollList::RenderStdItem(int yPos, bool selected, ImageResource* icon, const char* text, const char* addtext)
+//void GUIScrollList::RenderStdItem(int yPos, bool selected, ImageResource* icon, const char* text, int iconAndTextH)
 {
-	if (hasHighlightColor && selected) {
-		// Highlight the item background of the selected item
+	if (DataManager::GetStrValue("of_hw_control_mode") == "1") {
+		COLOR* clr_ptr = &mFocusColor;
+		ConvertStrToColor(DataManager::GetStrValue("theme_accent_dark"), clr_ptr);
+		gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
+	} else {
 		gr_color(mHighlightColor.red, mHighlightColor.green, mHighlightColor.blue, mHighlightColor.alpha);
+	}
+
+	if (hasHighlightColor && selected && (HasFocus() || DataManager::GetStrValue("of_hw_control_mode") != "1")) {
+		// Highlight the item background of the selected item
 		gr_fill(mRenderX, yPos, mRenderW, actualItemHeight);
 	}
 
@@ -334,23 +364,31 @@ void GUIScrollList::RenderStdItem(int yPos, bool selected, ImageResource* icon, 
 		gr_color(mFontColor.red, mFontColor.green, mFontColor.blue, mFontColor.alpha);
 	}
 
-	if (!iconAndTextH)
-		iconAndTextH = actualItemHeight;
+	//if (!iconAndTextH)
+		int iconAndTextH = actualItemHeight;
 
 	// render icon
 	if (icon && icon->GetResource()) {
 		int iconH = icon->GetHeight();
 		int iconW = icon->GetWidth();
 		int iconY = yPos + (iconAndTextH - iconH) / 2;
-		int iconX = mRenderX + (maxIconWidth - iconW) / 2;
+		int iconX = mRenderX + (maxIconWidth - iconW) / 2 - mPadding; //[f/d] right icon padding
 		gr_blit(icon->GetResource(), 0, 0, iconW, iconH, iconX, iconY);
 	}
 
 	// render label text
 	if (mFont && mFont->GetResource()) {
 		int textX = mRenderX + maxIconWidth + 5;
-		int textY = yPos + (iconAndTextH / 2);
-		gr_textEx_scaleW(textX, textY, text, mFont->GetResource(), mRenderW, TEXT_ONLY_RIGHT, 0);
+		if (addtext != NULL) { //[f/d] draw 2 lines
+			int textY = yPos + (iconAndTextH / 2) - scale_theme_y(34);
+			int textYt = yPos + (iconAndTextH / 2) + scale_theme_y(24);
+			gr_textEx_scaleW(textX, textY, text, mFont->GetResource(), mRenderW, TEXT_ONLY_RIGHT, 0);
+			gr_color(95, 99, 104, 255); //[f/d] i'm lazy af so use #5F6368 color and don't allow set it using xml ಠ_ಠ
+			gr_textEx_scaleW(textX, textYt, addtext, mFont->GetResource(), mRenderW, TEXT_ONLY_RIGHT, 0);
+		} else { //1 line
+			int textY = yPos + (iconAndTextH / 2);
+			gr_textEx_scaleW(textX, textY, text, mFont->GetResource(), mRenderW, TEXT_ONLY_RIGHT, 0);
+		}
 	}
 }
 
@@ -500,6 +538,12 @@ int GUIScrollList::NotifyTouch(TOUCH_STATE state, int x, int y)
 		mUpdate = 1;
 		break;
 
+	case TOUCH_HOLD:
+		if (selectedItem != NO_ITEM && itemHold != "")
+			DataManager::SetValue(itemHold, "1");
+		else
+			break;
+
 	case TOUCH_RELEASE:
 		if (fastScroll)
 			mUpdate = 1; // get rid of touch effects on the fastscroll bar
@@ -512,8 +556,8 @@ int GUIScrollList::NotifyTouch(TOUCH_STATE state, int x, int y)
 #ifndef TW_NO_HAPTICS
 			DataManager::Vibrate("tw_button_vibrate");
 #endif
-
-			selectedItem = NO_ITEM;
+			if (DataManager::GetStrValue("of_hw_control_mode") != "1")
+				selectedItem = NO_ITEM;
 		} else {
 			// Start kinetic scrolling
 			scrollingSpeed = lastY - last2Y;
@@ -521,7 +565,7 @@ int GUIScrollList::NotifyTouch(TOUCH_STATE state, int x, int y)
 				scrollingSpeed = 0;
 		}
 	case TOUCH_REPEAT:
-	case TOUCH_HOLD:
+	//case TOUCH_HOLD:
 		break;
 	}
 	return 0;
@@ -658,4 +702,60 @@ bool GUIScrollList::AddLines(std::vector<std::string>* origText, std::vector<std
 		}
 	}
 	return true;
+}
+
+int GUIScrollList::GetFocusedItemActionPos(int& x, int& y, int& w, int& h)
+{
+	if (selectedItem == NO_ITEM || selectedItem >= GetItemCount()) {
+		return 0;
+	}
+
+	y = mRenderY + mHeaderH + y_offset + selectedItem * actualItemHeight;
+	x = mRenderX;
+	w = mRenderW;
+	h = actualItemHeight;
+
+	return 1;
+}
+
+void GUIScrollList::SetSelectedItem(size_t index)
+{
+	if (index < GetItemCount()) {
+		selectedItem = index;
+		mUpdate = 1;
+	}
+}
+
+bool GUIScrollList::MoveSelectionDown()
+{
+	if (selectedItem == NO_ITEM) {
+		SetSelectedItem(0);
+		return true;
+	}
+
+	if (selectedItem < GetItemCount() - 1) {
+		selectedItem++;
+		SetVisibleListLocation(selectedItem);
+		mUpdate = 1;
+		return true;
+	}
+
+	return false;
+}
+
+bool GUIScrollList::MoveSelectionUp()
+{
+	if (selectedItem == NO_ITEM) {
+		SetSelectedItem(GetItemCount() - 1);
+		return true;
+	}
+
+	if (selectedItem > 0) {
+		selectedItem--;
+		SetVisibleListLocation(selectedItem);
+		mUpdate = 1;
+		return true;
+	}
+
+	return false;
 }

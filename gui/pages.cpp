@@ -2,6 +2,9 @@
 	Copyright 2013 bigbiff/Dees_Troy TeamWin
 	This file is part of TWRP/TeamWin Recovery Project.
 
+	Copyright (C) 2018-2025 OrangeFox Recovery Project
+	This file is part of the OrangeFox Recovery Project.
+
 	TWRP is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation, either version 3 of the License, or
@@ -35,6 +38,7 @@
 #include <dirent.h>
 #include "../twrp-functions.hpp"
 #include "../partitions.hpp"
+#include "../variables.h"
 
 #include <string>
 #include <algorithm>
@@ -53,8 +57,8 @@ extern "C" {
 #include "objects.hpp"
 #include "blanktimer.hpp"
 
-#include "../variables.h"
-#include <android-base/properties.h>
+// version 2 requires theme to handle power button as action togglebacklight
+#define TW_THEME_VERSION 3
 
 #define TW_THEME_VER_ERR -2
 
@@ -68,23 +72,12 @@ HardwareKeyboard *PageManager::mHardwareKeyboard = NULL;
 bool PageManager::mReloadTheme = false;
 std::string PageManager::mStartPage = "main";
 std::vector<language_struct> Language_List;
+long mime;
 
 int tw_x_offset = 0;
 int tw_y_offset = 0;
 int tw_w_offset = 0;
 int tw_h_offset = 0;
-static void apply_offset_properties()
-{
-    std::string s;
-    s = android::base::GetProperty("ro.twrp.x_offset", "");
-    if (!s.empty()) tw_x_offset = atoi(s.c_str());
-    s = android::base::GetProperty("ro.twrp.y_offset", "");
-    if (!s.empty()) tw_y_offset = atoi(s.c_str());
-    s = android::base::GetProperty("ro.twrp.w_offset", "");
-    if (!s.empty()) tw_w_offset = atoi(s.c_str());
-    s = android::base::GetProperty("ro.twrp.h_offset", "");
-    if (!s.empty()) tw_h_offset = atoi(s.c_str());
-}
 
 // Helper routine to convert a string to a color declaration
 int ConvertStrToColor(std::string str, COLOR* color)
@@ -102,6 +95,8 @@ int ConvertStrToColor(std::string str, COLOR* color)
 	else if (str == "red")		{ color->red = 255; return 0; }
 	else if (str == "green")	{ color->green = 255; return 0; }
 	else if (str == "blue")		{ color->blue = 255; return 0; }
+	else if (str == "pink")		{ color->red = 255; color->green = 192; color->blue = 203; return 0; }
+	else if (str == "yellow")	{ color->red = color->green = 255; color->blue = 0; return 0; }
 
 	// At this point, we require an RGB(A) color
 	if (str[0] != '#')
@@ -294,7 +289,7 @@ int ActionObject::SetActionPos(int x, int y, int w, int h)
 	return 0;
 }
 
-Page::Page(xml_node<>* page, std::vector<xml_node<>*> *templates)
+Page::Page(xml_node<>* page, std::vector<xml_node<>*> *templates) : mFocusedObjectIndex(-1)
 {
 	mTouchStart = NULL;
 
@@ -324,6 +319,11 @@ Page::Page(xml_node<>* page, std::vector<xml_node<>*> *templates)
 
 	// This is a recursive routine for template handling
 	ProcessNode(page, templates, 0);
+
+	// Set focus on the first action
+	if (!mActions.empty()) {
+		SetFocus(0); // disable on hw_button_mode 0
+	}
 }
 
 Page::~Page()
@@ -361,6 +361,19 @@ bool Page::ProcessNode(xml_node<>* page, std::vector<xml_node<>*> *templates, in
 			mObjects.push_back(element);
 			mRenders.push_back(element);
 			mActions.push_back(element);
+		}
+		else if (type == "gesture")
+		{
+			GUIGesture* element = new GUIGesture(child);
+			mObjects.push_back(element);
+			mRenders.push_back(element);
+			mActions.push_back(element);
+		}
+		else if (type == "battery")
+		{
+			GUIBattery* element = new GUIBattery(child);
+			mObjects.push_back(element);
+			mRenders.push_back(element);
 		}
 		else if (type == "image")
 		{
@@ -473,15 +486,6 @@ bool Page::ProcessNode(xml_node<>* page, std::vector<xml_node<>*> *templates, in
 			mRenders.push_back(element);
 			mActions.push_back(element);
 		}
-        else if (type == "wlanlist")
-        {
-#ifndef TW_NO_NETWORK
-            GUIWlanList* element = new GUIWlanList(child);
-            mObjects.push_back(element);
-            mRenders.push_back(element);
-            mActions.push_back(element);
-#endif
-        }
 		else if (type == "patternpassword")
 		{
 			GUIPatternPassword* element = new GUIPatternPassword(child);
@@ -496,19 +500,6 @@ bool Page::ProcessNode(xml_node<>* page, std::vector<xml_node<>*> *templates, in
 			mRenders.push_back(element);
 			mActions.push_back(element);
 		}
-        else if (type == "borderedlogbox")
-        {
-#ifndef TW_NO_NETWORK
-            GUIBorderedLogBox* element = new GUIBorderedLogBox(child);
-            mObjects.push_back(element);
-            mRenders.push_back(element);
-            mActions.push_back(element);
-            if (mName == "wlan") {
-                extern void SetWlanLogBox(GUIBorderedLogBox*);
-                SetWlanLogBox(element);
-            }
-#endif
-        }
 		else if (type == "template")
 		{
 			if (!templates || !child->first_attribute("name"))
@@ -634,7 +625,7 @@ int Page::NotifyKey(int key, bool down)
 	// We work backwards, from top-most element to bottom-most element
 	for (iter = mActions.rbegin(); iter != mActions.rend(); iter++)
 	{
-		ret = (*iter)->NotifyKey(key, down);
+		ret = (*iter)->NotifyKey(mime > 500 ? key + 200 : key, down);
 		if (ret == 0)
 			return 0;
 		if (ret < 0) {
@@ -684,6 +675,14 @@ void Page::SetPageFocus(int inFocus)
 	for (iter = mRenders.begin(); iter != mRenders.end(); iter++)
 		(*iter)->SetPageFocus(inFocus);
 
+	if (inFocus == 0 && mFocusedObjectIndex >= 0 && mFocusedObjectIndex < mActions.size()) {
+		std::vector<ActionObject*>::iterator iter;
+		for (iter = mActions.begin(); iter != mActions.end(); iter++)
+			(*iter)->SetFocus(inFocus);
+
+		mFocusedObjectIndex = -1;
+	}
+
 	return;
 }
 
@@ -695,6 +694,7 @@ int Page::NotifyVarChange(std::string varName, std::string value)
 		if ((*iter)->NotifyVarChange(varName, value))
 			LOGERR("An action handler errored on NotifyVarChange.\n");
 	}
+
 	return 0;
 }
 
@@ -731,7 +731,8 @@ LoadingContext* PageManager::currentLoadingContext = NULL;
 PageSet::PageSet()
 {
 	mResources = new ResourceManager;
-	mCurrentPage = NULL;
+	mCurrentPage = nullptr;
+	mCurrentOverlay = nullptr;
 
 	set_scale_values(1, 1); // Reset any previous scaling values
 }
@@ -814,7 +815,7 @@ int PageSet::Load(LoadingContext& ctx, const std::string& filename)
 	// process includes recursively
 	child = root->first_node("include");
 	if (child) {
-		xml_node<>* include = child->first_node("xmlfile");
+		xml_node<>* include = child->first_node("xml");
 		while (include != NULL) {
 			xml_attribute<>* attr = include->first_attribute("name");
 			if (!attr) {
@@ -822,13 +823,22 @@ int PageSet::Load(LoadingContext& ctx, const std::string& filename)
 				continue;
 			}
 
-			string filename = ctx.basepath + attr->value();
+			string filename = gui_parse_text(attr->value());
 			LOGINFO("Including file: %s...\n", filename.c_str());
 			int rc = Load(ctx, filename);
-			if (rc != 0)
-				return rc;
+			if (rc != 0) {
+				attr = include->first_attribute("default");
+				if (attr) {
+					string filename = attr->value();
+					int rc = Load(ctx, filename);
+					if (rc != 0)
+						return rc;
+				} else {
+					return rc;
+				}
+			}
 
-			include = include->next_sibling("xmlfile");
+			include = include->next_sibling("xml");
 		}
 	}
 
@@ -901,21 +911,27 @@ int PageSet::LoadDetails(LoadingContext& ctx, xml_node<>* root)
 		if (theme_ver != TW_THEME_VERSION) {
 			LOGINFO("theme version from xml: %i, expected %i\n", theme_ver, TW_THEME_VERSION);
 			if (ctx.zip) {
-				gui_err("theme_ver_err=Custom theme version does not match TWRP version. Using stock theme.");
+				gui_err("theme_ver_err=Custom theme version does not match OrangeFox version. Using stock theme.");
 				return TW_THEME_VER_ERR;
 			} else {
-				gui_print_color("warning", "Stock theme version does not match TWRP version.\n");
+				gui_print_color("warning", "Stock theme version does not match OrangeFox version.\n");
 			}
 		}
 		xml_node<>* resolution = child->first_node("resolution");
 		if (resolution) {
 			LOGINFO("Checking resolution...\n");
 			xml_attribute<>* width_attr = resolution->first_attribute("width");
-			xml_attribute<>* height_attr = resolution->first_attribute("height");
+			xml_attribute<>* resize_attr = resolution->first_attribute("resizing");
+			int height;
+			if (resize_attr) {
+				xml_attribute<>* height_res_attr = resolution->first_attribute("height");
+				height = atoi(height_res_attr->value());
+			} else {
+				DataManager::GetValue("screen_original_h", height);
+			}
 			xml_attribute<>* noscale_attr = resolution->first_attribute("noscaling");
-			if (width_attr && height_attr && !noscale_attr) {
+			if (width_attr && !noscale_attr) {
 				int width = atoi(width_attr->value());
-				int height = atoi(height_attr->value());
 				int offx = 0, offy = 0;
 #ifdef TW_ROUND_SCREEN
 				xml_node<>* roundscreen = child->first_node("roundscreen");
@@ -932,8 +948,23 @@ int PageSet::LoadDetails(LoadingContext& ctx, xml_node<>* root)
 				}
 #endif
 				if (width != 0 && height != 0) {
-					float scale_w = (((float)gr_fb_width() + (float)tw_w_offset) - ((float)offx * 2.0)) / (float)width;
-					float scale_h = (((float)gr_fb_height() + (float)tw_h_offset) - ((float)offy * 2.0)) / (float)height;
+					std::string num;
+					float scale_w, scale_h;
+					//[f/d] Custom scaling for testing, wew
+					//      I used file because DataManager not loaded user vars at this moment
+					//      Someone may mess up recovery using this file so just remove code when OF lab disabled
+#ifdef OF_ENABLE_LAB
+					if (TWFunc::read_file(Fox_Home + "/scaling", num) == 0) {
+							LOGERR("Custom scaling: %s\n", num.c_str());
+							scale_w = ::atof(num.c_str());
+							scale_h = ::atof(num.c_str());
+					} else {
+#endif
+						scale_w = (((float)gr_fb_width() + (float)tw_w_offset) - ((float)offx * 2.0)) / (float)width;
+						scale_h = (((float)gr_fb_height() + (float)tw_h_offset) - ((float)offy * 2.0)) / (float)height;
+#ifdef OF_ENABLE_LAB
+					}
+#endif
 #ifdef TW_ROUND_SCREEN
 					float scale_off_w = ((float)gr_fb_width() + (float)tw_w_offset) / (float)width;
 					float scale_off_h = ((float)gr_fb_height() + (float)tw_h_offset) / (float)height;
@@ -995,6 +1026,7 @@ int PageSet::SetOverlay(Page* page)
 			}
 		}
 
+		mCurrentOverlay = page;
 		page->SetPageFocus(1);
 		page->NotifyVarChange("", "");
 
@@ -1006,10 +1038,15 @@ int PageSet::SetOverlay(Page* page)
 		if (!mOverlays.empty()) {
 			mOverlays.back()->SetPageFocus(0);
 			mOverlays.pop_back();
-			if (!mOverlays.empty())
+			if (!mOverlays.empty()) {
 				mOverlays.back()->SetPageFocus(1);
-			else if (mCurrentPage)
+				mCurrentOverlay = mOverlays.back();
+			} else if (mCurrentPage) {
 				mCurrentPage->SetPageFocus(1); // Just in case somehow the regular page lost focus, we'll set it again
+				mCurrentOverlay = nullptr;
+			}
+		} else {
+			mCurrentOverlay = nullptr;
 		}
 	}
 	return 0;
@@ -1391,7 +1428,6 @@ int PageManager::LoadPackage(std::string name, std::string package, std::string 
 		tw_y_offset = TW_Y_OFFSET;
 		tw_w_offset = TW_W_OFFSET;
 		tw_h_offset = TW_H_OFFSET;
-		apply_offset_properties();
 		if (name != "splash") {
 			LoadLanguageList(NULL);
 			languageFile = LoadFileToBuffer(TWRES "languages/en.xml", NULL);
@@ -1405,7 +1441,6 @@ int PageManager::LoadPackage(std::string name, std::string package, std::string 
 		tw_y_offset = 0;
 		tw_w_offset = 0;
 		tw_h_offset = 0;
-		apply_offset_properties();
 		if (!TWFunc::Path_Exists(package)) {
 			return -1;
 		}
@@ -1415,7 +1450,7 @@ int PageManager::LoadPackage(std::string name, std::string package, std::string 
 
 		if (err != 0)
 			return -1;
-
+		
 		ctx.zip = Zip;
 		mainxmlfilename = "ui.xml";
 		LoadLanguageList(ctx.zip);
@@ -1536,24 +1571,27 @@ void PageManager::ReleasePackage(std::string name)
 
 int PageManager::RunReload() {
 	int ret_val = 0;
-	std::string theme_path;
+	std::string theme_path, isPassOpen;
+
+	//[f/d] save pass open var so we don't need to retype pass after theme changing
+	DataManager::GetValue("pass_open", isPassOpen);
 
 	if (!mReloadTheme)
 		return 0;
 
 	mReloadTheme = false;
-	theme_path = DataManager::GetCurrentStoragePath();
+	theme_path = DataManager::GetSettingsStoragePath();
 	if (PartitionManager.Mount_By_Path(theme_path.c_str(), 1) < 0) {
 		LOGERR("Unable to mount %s during gui_reload_theme function.\n", theme_path.c_str());
 		ret_val = 1;
 	}
 
-	theme_path += "/TWRP/theme/ui.zip";
-	if (ret_val != 0 || ReloadPackage("TWRP", theme_path) != 0)
+	theme_path += "/theme/ui.zip";
+	if (ret_val != 0 || ReloadPackage("OrangeFox", theme_path) != 0)
 	{
 		// Loading the custom theme failed - try loading the stock theme
 		LOGINFO("Attempting to reload stock theme...\n");
-		if (ReloadPackage("TWRP", TWRES "ui.xml"))
+		if (ReloadPackage("OrangeFox", TWRES "ui.xml"))
 		{
 			LOGERR("Failed to load base packages.\n");
 			ret_val = 1;
@@ -1566,13 +1604,24 @@ int PageManager::RunReload() {
 		}
 	}
 
+	//[f/d] Load settings file
+	DataManager::ReadSettingsFile();
+    	gui_forceRender();
+	std::string page_return;
+	DataManager::GetValue("of_reload_back", page_return);
+	DataManager::SetValue("pass_open", isPassOpen);
+	gui_changePage(page_return);
+
+	LOGINFO("Theme reloaded\n");
+
 	// This makes the console re-translate
-	GUIConsole::Clear_For_Retranslation();
+	//GUIConsole::Clear_For_Retranslation();
 
 	return ret_val;
 }
 
 void PageManager::RequestReload() {
+	DataManager::Flush();
 	mReloadTheme = true;
 }
 
@@ -1717,6 +1766,251 @@ void PageManager::AddStringResource(std::string resource_source, std::string res
 {
 	if (mCurrentSet)
 		mCurrentSet->AddStringResource(resource_source, resource_name, value);
+}
+
+void PageManager::MoveFocus(Page::Direction direction)
+{
+	if (mCurrentSet) mCurrentSet->MoveFocus(direction);
+}
+
+void PageManager::SelectFocusedElement(bool longPressed)
+{
+	if (mCurrentSet) mCurrentSet->SelectFocusedElement(longPressed);
+}
+
+void PageSet::MoveFocus(Page::Direction direction)
+{
+	if (mCurrentOverlay)
+		mCurrentOverlay->MoveFocus(direction);
+	else if (mCurrentPage)
+		mCurrentPage->MoveFocus(direction);
+}
+
+void PageSet::SelectFocusedElement(bool longPressed)
+{
+	if (mCurrentOverlay)
+		mCurrentOverlay->SelectFocusedElement(longPressed);
+	else if (mCurrentPage)
+		mCurrentPage->SelectFocusedElement(longPressed);
+}
+
+int Page::MoveFocusIndex(Page::Direction direction) {
+	static bool keepFocusIndex = false;
+	int nextIndex = mFocusedObjectIndex;
+	size_t actionsSize = mActions.size();
+
+	if (!keepFocusIndex)
+		nextIndex -= static_cast<int>(direction);
+	else
+		keepFocusIndex = false;
+
+	do {
+		// Do not swap the checks
+		if (nextIndex < 0)
+			nextIndex = actionsSize - 1;
+
+		if (nextIndex >= actionsSize)
+			nextIndex = 0;
+
+		ActionObject* focusedElement = mActions[nextIndex];
+		GUIObject* obj = dynamic_cast<GUIObject*>(focusedElement);
+		if (obj && !obj->isConditionTrue())
+			continue;
+		string name = focusedElement->GetObjectType();
+
+		if (name == "GUIScrollList") {
+			IInteractiveScrollList* scrollList = dynamic_cast<IInteractiveScrollList*>(focusedElement);
+			if (scrollList && scrollList->GetItemCount() != 0) {
+				if (!focusedElement->HasFocus()) {
+					if (direction == Page::Direction::Down)
+						scrollList->SetSelectedItem(0);
+					else
+						scrollList->SetSelectedItem(scrollList->GetItemCount() - 1);
+					gui_forceRender();
+					keepFocusIndex = true;
+					return nextIndex; // Stay here
+				} else if ((direction == Page::Direction::Down && scrollList->MoveSelectionDown()) || (direction == Page::Direction::Up && scrollList->MoveSelectionUp())) {
+					gui_forceRender();
+					keepFocusIndex = true;
+					return nextIndex; // Stay here
+				} else {
+					// End of scrollList
+					focusedElement->SetFocus(0);
+					continue; // Searching new index
+				}
+			} else {
+				continue;
+			}
+		} else if (name == "GUIKeyboard") {
+			GUIKeyboard* keyboard = dynamic_cast<GUIKeyboard*>(focusedElement);
+			if (keyboard) {
+				if (!focusedElement->HasFocus()) {
+					if (direction == Page::Direction::Down)
+						keyboard->SetSelectedItem(true);
+					else
+						keyboard->SetSelectedItem(false);
+					gui_forceRender();
+					keepFocusIndex = true;
+					return nextIndex; // Stay here
+				} else if ((direction == Page::Direction::Down && keyboard->MoveSelectionNext()) || (direction == Page::Direction::Up && keyboard->MoveSelectionPrevious())) {
+					gui_forceRender();
+					keepFocusIndex = true;
+					return nextIndex; // Stay here
+				} else {
+					// End of keyboard
+					focusedElement->SetFocus(0);
+					continue; // Searching new index
+				}
+			} else {
+				continue;
+			}
+		} else if (name == "GUIButton") {
+			GUIButton* button = dynamic_cast<GUIButton*>(focusedElement);
+			if (button && button->GetActionCount() > 0) {
+				return nextIndex; // Next is that button
+			} else {
+				continue; // Searching new index
+			}
+		} else if (name == "GUICheckbox" || name == "GUISlider" || name == "GUISliderValue" || name == "GUIPatternPassword") {
+			return nextIndex; // Next is that object
+		}
+
+	} while ((nextIndex -= static_cast<int>(direction)) != mFocusedObjectIndex); // We work backwards, from top-most element to bottom-most element
+	return nextIndex; // Unable to find required object
+}
+
+void Page::ShiftSlider(Page::Direction direction)
+{
+	ActionObject* focusedElement = mActions[mFocusedObjectIndex];
+	GUISlider* slider = dynamic_cast<GUISlider*>(focusedElement);
+	if (slider) {
+		int moveToX = slider->GetValXCurr() + static_cast<int>(direction) * (sliderEndX - sliderStartX) / 2;
+		if (moveToX < sliderStartX)
+			moveToX = sliderStartX;
+		if (moveToX >= sliderEndX)
+			moveToX = sliderEndX;
+		focusedElement->NotifyTouch(TOUCH_DRAG, moveToX, sliderY);
+	}
+}
+
+void Page::ShiftSliderVal(Page::Direction direction)
+{
+	ActionObject* focusedElement = mActions[mFocusedObjectIndex];
+	GUISliderValue* slider = dynamic_cast<GUISliderValue*>(focusedElement);
+	if (slider) {
+		int value = slider->GetCurrentValue() + static_cast<int>(direction) * (sliderEndX - sliderStartX) / 10;
+		slider->SetCurrentValue(value);
+	}
+}
+
+void Page::MoveFocusInPattern(Page::Direction direction)
+{
+	GUIPatternPassword* patternPass = dynamic_cast<GUIPatternPassword*>(mActions[mFocusedObjectIndex]);
+	if (patternPass) {
+		if (direction == Page::Direction::Down)
+			patternPass->MoveSelectionNext();
+		else
+			patternPass->MoveSelectionPrevious();
+		gui_forceRender();
+	}
+}
+
+void Page::MoveFocus(Page::Direction direction)
+{
+	if (mActions.empty()) return;
+
+	if (mFocusSlider)
+		return ShiftSlider(direction);
+
+	if (mFocusSliderVal)
+		return ShiftSliderVal(direction);
+
+	if (mFocusPatternPassword)
+		return MoveFocusInPattern(direction);
+
+	SetFocus(MoveFocusIndex(direction));
+}
+
+void Page::SelectFocusedElement(bool longPressed) {
+	if (mFocusedObjectIndex >= 0 && mFocusedObjectIndex < mActions.size()) {
+		ActionObject* focusedElement = mActions[mFocusedObjectIndex];
+		GUISlider* slider = dynamic_cast<GUISlider*>(focusedElement);
+		GUISliderValue* sliderVal = dynamic_cast<GUISliderValue*>(focusedElement);
+		GUIPatternPassword* patternPass = dynamic_cast<GUIPatternPassword*>(focusedElement);
+		int centerX, centerY, actionW, actionH;
+
+		if (slider) {
+			if (!mFocusSlider) {
+				mFocusSlider = true;
+				slider->GetSliderPos(sliderStartX, sliderEndX, sliderY);
+				slider->mFocusColor = {0, 255, 0, 255};
+				focusedElement->NotifyTouch(TOUCH_START, sliderStartX, sliderY);
+			} else {
+				mFocusSlider = false;
+				slider->mFocusColor = {255, 0, 0, 255};
+				focusedElement->NotifyTouch(TOUCH_RELEASE, sliderEndX, sliderY);
+			}
+			gui_forceRender();
+			return;
+		} else if (sliderVal) {
+			if (!mFocusSliderVal) {
+				mFocusSliderVal = true;
+				sliderVal->GetSliderPos(sliderStartX, sliderEndX, sliderY);
+				sliderVal->mFocusColor = {0, 255, 0, 255};
+			} else {
+				mFocusSliderVal = false;
+				sliderVal->mFocusColor = {255, 0, 0, 255};
+			}
+			gui_forceRender();
+			return;
+		} else if (patternPass) {
+			static bool isFirstDot = true;
+			if (!mFocusPatternPassword) { // We are not in the pattern; Enter
+				mFocusPatternPassword = true;
+				patternPass->mFocusColor = {0, 255, 0, 255};
+			} else if (longPressed) { // We are already in the pattern; Exit
+				mFocusPatternPassword = false;
+				isFirstDot = true;
+				patternPass->mFocusColor = {255, 0, 0, 255};
+				focusedElement->NotifyTouch(TOUCH_RELEASE, 0, 0); // End drawing (no dots will be selected here, the coordinates will not be checked)
+			} else { // We are already in the pattern; Select dot
+				focusedElement->GetFocusedItemActionPos(centerX, centerY, actionW, actionH);
+				centerX += actionW / 2;
+				centerY += actionH / 2;
+				if (isFirstDot) {
+					focusedElement->NotifyTouch(TOUCH_START, centerX, centerY); // 1st dot
+					isFirstDot = false;
+				} else {
+					focusedElement->NotifyTouch(TOUCH_DRAG, centerX, centerY); // 2nd and others dots
+				}
+			}
+			return;
+		} else if (focusedElement->GetFocusedItemActionPos(centerX, centerY, actionW, actionH)) {
+			centerX += actionW / 2;
+			centerY += actionH / 2;
+		} else {
+			focusedElement->GetActionPos(centerX, centerY, actionW, actionH);
+			centerX += actionW / 2;
+			centerY += actionH / 2;
+		}
+
+		if (longPressed)
+			focusedElement->NotifyTouch(TOUCH_HOLD, centerX, centerY);
+		else
+			focusedElement->NotifyTouch(TOUCH_RELEASE, centerX, centerY);
+	}
+}
+
+void Page::SetFocus(int index)
+{
+	if (mFocusedObjectIndex >= 0 && mFocusedObjectIndex < mActions.size())
+		mActions[mFocusedObjectIndex]->SetFocus(0);
+
+	mFocusedObjectIndex = index;
+	if (mFocusedObjectIndex >= 0 && mFocusedObjectIndex < mActions.size())
+		mActions[mFocusedObjectIndex]->SetFocus(1);
+
+	gui_forceRender();
 }
 
 extern "C" void gui_notifyVarChange(const char *name, const char* value)

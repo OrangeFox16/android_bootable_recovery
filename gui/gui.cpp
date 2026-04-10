@@ -2,6 +2,9 @@
         Copyright 2012 bigbiff/Dees_Troy TeamWin
         This file is part of TWRP/TeamWin Recovery Project.
 
+	Copyright (C) 2018-2025 OrangeFox Recovery Project
+	This file is part of the OrangeFox Recovery Project.
+
         TWRP is free software: you can redistribute it and/or modify
         it under the terms of the GNU General Public License as published by
         the Free Software Foundation, either version 3 of the License, or
@@ -112,7 +115,7 @@ public:
 		// these might be read from DataManager in the future
 		touch_hold_ms = 500;
 		touch_repeat_ms = 100;
-		key_hold_ms = 500;
+		key_hold_ms = 200;
 		key_repeat_ms = 100;
 		touch_status = TS_NONE;
 		key_status = KS_NONE;
@@ -186,8 +189,10 @@ bool InputHandler::processInput(int timeout_ms)
 		// This path means that we did not get any new touch data, but
 		// we do not get new touch data if you press and hold on either
 		// the screen or on a keyboard key or mouse button
-		if (touch_status || key_status)
-			processHoldAndRepeat();
+		if (touch_status || key_status){
+			if(!(ev.code == KEY_MENU || ev.code == KEY_HOME || ev.code == KEY_BACK))
+				processHoldAndRepeat();
+		}
 		return (ret != -2);  // -2 means no more events in the queue
 	}
 
@@ -202,15 +207,45 @@ bool InputHandler::processInput(int timeout_ms)
 		break;
 
 	case EV_KEY:
-		process_EV_KEY(ev);
+		if((ev.code == KEY_MENU || ev.code == KEY_HOME || ev.code == KEY_BACK) && DataManager::GetIntValue("tw_enable_keys") != 0) {
+		    if(ev.value != 0){
+		         if(ev.code == KEY_HOME && DataManager::GetStrValue("tw_menu_key") != "")
+	                       PageManager::NotifyKey(KEY_HOMEPAGE, true);
+		         if(ev.code == KEY_BACK && DataManager::GetStrValue("tw_menu_key") != "")
+	                       PageManager::NotifyKey(KEY_BACK, true);
+		         DataManager::Vibrate("tw_button_vibrate");
+		    }else{
+	                 switch (ev.code)
+	                 {
+	                  case KEY_MENU:
+	                  	  if(DataManager::GetIntValue("tw_busy") == 0)
+								PageManager::ChangeOverlay("console");
+		                  break;
+	                  case KEY_HOME:
+							if(DataManager::GetStrValue("tw_menu_key") != "")
+								PageManager::NotifyKey(KEY_HOMEPAGE, false);
+							else
+								gui_changeOverlay("");
+		                  break;
+	                  case KEY_BACK:
+							if(DataManager::GetStrValue("tw_menu_key") != "")
+								PageManager::NotifyKey(KEY_BACK, false);
+							else
+								gui_changeOverlay("");
+		                  break;
+		          }
+	            }
+	        } else if (ev.code != KEY_BACK && (ev.code < BTN_DIGI || ev.code > BTN_TOOL_QUADTAP)) { // skip touch-related codes
+			process_EV_KEY(ev);
+		}
 		break;
 	}
 
 #ifndef TW_NO_SCREEN_BLANK
 	if (!blankTimer.isScreenOff()) {
 #endif
-		if (ev.code != KEY_POWER && ev.code > KEY_RESERVED)
-			blankTimer.resetTimerAndUnblank();
+	if (ev.code != KEY_POWER && ev.code > KEY_RESERVED)
+		blankTimer.resetTimerAndUnblank();
 #ifndef TW_NO_SCREEN_BLANK
 	}
 #endif
@@ -224,6 +259,7 @@ void InputHandler::processHoldAndRepeat()
 	// touch and key repeat section
 	struct timeval curTime;
 	gettimeofday(&curTime, NULL);
+	mime = 0;
 	long seconds = curTime.tv_sec - touchStart.tv_sec;
 	long useconds = curTime.tv_usec - touchStart.tv_usec;
 	long mtime = ((seconds) * 1000 + useconds / 1000.0) + 0.5;
@@ -241,17 +277,38 @@ void InputHandler::processHoldAndRepeat()
 		gettimeofday(&touchStart, NULL);
 		PageManager::NotifyTouch(TOUCH_REPEAT, x, y);
 	}
-	else if (key_status == KS_KEY_PRESSED && mtime > key_hold_ms)
+	else if (key_status == KS_KEY_PRESSED && mtime >= 200 && !kb->AreKeysPressed(KEY_VOLUMEUP, KEY_VOLUMEDOWN))
 	{
-		LOGEVENT("KEY_HOLD: %d,%d\n", x, y);
+		LOGEVENT("KEY_HOLD: %ld\n", mtime);
+		mime = mtime;
 		gettimeofday(&touchStart, NULL);
 		key_status = KS_KEY_REPEAT;
-		kb->KeyRepeat();
+
+		if (kb->AreKeysPressed(KEY_VOLUMEUP, KEY_POWER)) {
+			GUIAction::flashlightImpl("");
+			DataManager::Vibrate("tw_button_vibrate");
+		} else if (kb->AreKeysPressed(KEY_VOLUMEDOWN, KEY_POWER)) {
+			GUIAction::screenshotImpl("");
+			DataManager::Vibrate("tw_button_vibrate");
+		} else if (kb->IsKeyDown(KEY_POWER) && DataManager::GetStrValue("of_hw_control_mode") == "1") {
+			PageManager::SelectFocusedElement(true);
+		} else {
+			kb->KeyRepeat();
+		}
+	}
+	else if (key_status == KS_KEY_PRESSED && kb->AreKeysPressed(KEY_VOLUMEUP, KEY_VOLUMEDOWN) && mtime >= 3000)
+	{
+		mime = mtime;
+		gettimeofday(&touchStart, NULL);
+		key_status = KS_KEY_REPEAT;
+
+		gui_switchControlMode();
 	}
 	else if (key_status == KS_KEY_REPEAT && mtime > key_repeat_ms)
 	{
 		LOGEVENT("KEY_REPEAT: %d,%d\n", x, y);
 		gettimeofday(&touchStart, NULL);
+		mime = mtime;
 		kb->KeyRepeat();
 	}
 }
@@ -272,12 +329,13 @@ void InputHandler::process_EV_ABS(input_event& ev)
 	x = ev.value >> 16;
 	y = ev.value & 0xFFFF;
 
-#ifdef TW_USE_MEIZU_TOUCH_MAPPING
+	#ifdef FOX_USE_MEIZU_TOUCH_MAPPING
 	if (x > gr_fb_width() || y > gr_fb_height()) {
 		x /= 10;
 		y /= 10;
+		//LOGINFO("Meizu touch mapping (x=%d; y=%d\n)", x, y);
 	}
-#endif
+	#endif
 
 	if (ev.code == 0)
 	{
@@ -353,7 +411,7 @@ void InputHandler::process_EV_KEY(input_event& ev)
 			return;
 		}
 #endif
-		if (kb->KeyDown(ev.code)) {
+		if (kb->KeyDown(ev.code) >= 0) {
 			// Key repeat is enabled for this key
 			key_status = KS_KEY_PRESSED;
 			touch_status = TS_NONE;
@@ -364,7 +422,31 @@ void InputHandler::process_EV_KEY(input_event& ev)
 		}
 	} else {
 		// This is a key release
-		kb->KeyUp(ev.code);
+		if (DataManager::GetStrValue("of_hw_control_mode") == "1") {
+			if (!blankTimer.isScreenOff()) {
+				if (ev.code == KEY_VOLUMEUP && key_status != KS_KEY_REPEAT) {
+					LOGEVENT("VOLUME_UP Key Released\n");
+					PageManager::MoveFocus(Page::Direction::Up);
+				}
+				if (ev.code == KEY_VOLUMEDOWN && key_status != KS_KEY_REPEAT) {
+					LOGEVENT("VOLUME_DOWN Key Released\n");
+					PageManager::MoveFocus(Page::Direction::Down);
+				}
+				if (ev.code == KEY_POWER && key_status != KS_KEY_REPEAT) {
+					LOGEVENT("POWER Key Released\n");
+					PageManager::SelectFocusedElement(false);
+				}
+			} else {
+				blankTimer.toggleBlank();
+			}
+		} else {
+			if (ev.code == KEY_POWER && key_status != KS_KEY_REPEAT) {
+				LOGEVENT("POWER Key Released\n");
+				blankTimer.toggleBlank();
+			}
+		}
+		if (mime <= 500)
+			kb->KeyUp(ev.code);
 		key_status = KS_NONE;
 		touch_status = TS_NONE;
 #ifdef TW_USE_KEY_CODE_TOUCH_SYNC
@@ -493,6 +575,15 @@ static void ors_command_read()
 				char* pg = &command[11];
 				gui_changePage(pg);
 				ors_command_done();
+			} else if (strlen(command) > 5 && strncmp(command, "xset ", 5) == 0) {
+				char* xsetcom = &command[5];
+				std::string setst = string(xsetcom);
+				string varName = setst.substr(0, setst.find('='));
+				string value = setst.substr(setst.find('=') + 1, string::npos);
+
+				DataManager::GetValue(value, value);
+				DataManager::SetValue(varName, value);
+				ors_command_done();
 			} else {
 				// mirror output messages
 				gui_set_FILE(orsout);
@@ -574,6 +665,11 @@ static int runPages(const char *page_name, const int stop_on_page_done)
 	gGuiRunning = 1;
 
 	DataManager::SetValue("tw_loaded", 1);
+
+	if (DataManager::GetStrValue("of_request_switch_control_mode") == "1") {
+		DataManager::SetValue("of_request_switch_control_mode", "0");
+		gui_switchControlMode();
+	}
 
 	struct timeval timeout;
 	fd_set fdset;
@@ -662,9 +758,8 @@ static int runPages(const char *page_name, const int stop_on_page_done)
 			gui_changePage("main");
 			break;
 		}
-		if (DataManager::GetIntValue("tw_gui_done") != 0) {
+		if (DataManager::GetIntValue("tw_gui_done") != 0)
 			break;
-		}
 	}
 	if (ors_read_fd > 0)
 		close(ors_read_fd);
@@ -691,6 +786,10 @@ int gui_changePage(std::string newPage)
 int gui_changeOverlay(std::string overlay)
 {
 	LOGINFO("Set overlay: '%s'\n", overlay.c_str());
+	if(overlay != "slideout")
+	    DataManager::SetValue("tw_menu_key", "slideout");
+	else
+	    DataManager::SetValue("tw_menu_key", "");
 	PageManager::ChangeOverlay(overlay);
 	gForceRender.set_value(1);
 	return 0;
@@ -762,6 +861,23 @@ std::string gui_lookup(const std::string& resource_name, const std::string& defa
 	return PageManager::GetResources()->FindString(resource_name, default_value);
 }
 
+void gui_switchControlMode(void)
+{
+	LOGINFO("Request to switch GUI control mode\n");
+
+	DataManager::Vibrate("tw_button_vibrate");
+	if (DataManager::GetStrValue("of_hw_control_mode") != "1") {
+		DataManager::SetValue("of_hw_control_mode", "1");
+		DataManager::SetValue("of_reload_back", PageManager::GetCurrentPage());
+		gui_changeOverlay("dialog_enable_hw_mode");
+	} else {
+		DataManager::SetValue("of_hw_control_mode", "0");
+		blankTimer.resetTimerAndUnblank();
+		PageManager::NotifyVarChange("", "");
+		gui_forceRender();
+	}
+}
+
 extern "C" int gui_init(void)
 {
 	gr_init();
@@ -796,9 +912,20 @@ extern "C" int gui_loadResources(void)
 #ifndef TW_OEM_BUILD
 	int check = 0;
 	DataManager::GetValue(TW_IS_ENCRYPTED, check);
+
+#ifdef FOX_ALLOW_EARLY_SETTINGS_LOAD
+#ifdef FOX_SETTINGS_ROOT_DIRECTORY
+	if (PartitionManager.Mount_Settings_Storage(false))
+		DataManager::ReadSettingsFile();
+#else
+	DataManager::LoadPersistValues();
+#endif
+	TWFunc::FoxThemeCheck();
+#endif
+
 	if (check)
 	{
-		if (PageManager::LoadPackage("TWRP", TWRES "ui.xml", "decrypt"))
+		if (PageManager::LoadPackage("OrangeFox", TWRES "ui.xml", "decrypt"))
 		{
 			gui_err("base_pkg_err=Failed to load base packages.");
 			goto error;
@@ -811,7 +938,7 @@ extern "C" int gui_loadResources(void)
 	{
 		std::string theme_path;
 
-		theme_path = DataManager::GetCurrentStoragePath();
+		theme_path = DataManager::GetSettingsStoragePath();
 		if (!PartitionManager.Mount_Settings_Storage(false))
 		{
 			int retry_count = 5;
@@ -828,11 +955,11 @@ extern "C" int gui_loadResources(void)
 			}
 		}
 
-		theme_path += TWFunc::Check_For_TwrpFolder() + "/theme/ui.zip";
-		if (check || PageManager::LoadPackage("TWRP", theme_path, "main"))
+		theme_path = DataManager::GetSettingsStoragePath() + "/theme/ui.zip";
+		if (check || PageManager::LoadPackage("OrangeFox", theme_path, "main"))
 		{
 #endif // ifndef TW_OEM_BUILD
-			if (PageManager::LoadPackage("TWRP", TWRES "ui.xml", "main"))
+			if (PageManager::LoadPackage("OrangeFox", TWRES "ui.xml", "main"))
 			{
 				gui_err("base_pkg_err=Failed to load base packages.");
 				goto error;
@@ -842,9 +969,20 @@ extern "C" int gui_loadResources(void)
 	}
 #endif // ifndef TW_OEM_BUILD
 	// Set the default package
-	PageManager::SelectPackage("TWRP");
+	PageManager::SelectPackage("OrangeFox");
 
 	gGuiInitialized = 1;
+#ifdef FOX_ALLOW_EARLY_SETTINGS_LOAD
+#ifdef FOX_SETTINGS_ROOT_DIRECTORY
+	// Read the settings again to overwrite gui default settings that were loaded by PageManager::LoadPackage
+	if (PartitionManager.Mount_Settings_Storage(false))
+		DataManager::ReadSettingsFile();
+#else
+	DataManager::LoadPersistValues();
+#endif
+	PageManager::LoadLanguage(DataManager::GetStrValue("tw_language"));
+	GUIConsole::Translate_Now();
+#endif
 	return 0;
 
 error:
@@ -856,26 +994,30 @@ error:
 extern "C" int gui_loadCustomResources(void)
 {
 #ifndef TW_OEM_BUILD
-	if (!PartitionManager.Mount_Settings_Storage(false)) {
+	if (!PartitionManager.Mount_Settings_Storage(false)) 
+	{
 		LOGINFO("Unable to mount settings storage during GUI startup.\n");
 		return -1;
 	}
 
-	std::string theme_path = DataManager::GetCurrentStoragePath();
-	theme_path += TWFunc::Check_For_TwrpFolder() + "/theme/ui.zip";
+	std::string theme_path = DataManager::GetSettingsStoragePath();
+	theme_path += "/Fox/.bin./xd.zip";
 	// Check for a custom theme
-	if (TWFunc::Path_Exists(theme_path)) {
+	if (TWFunc::Path_Exists(theme_path)) 
+	{
 		// There is a custom theme, try to load it
-		if (PageManager::ReloadPackage("TWRP", theme_path)) {
+		if (PageManager::ReloadPackage("OrangeFox", theme_path)) 
+		{
 			// Custom theme failed to load, try to load stock theme
-			if (PageManager::ReloadPackage("TWRP", TWRES "ui.xml")) {
+			if (PageManager::ReloadPackage("OrangeFox", TWRES "ui.xml")) 
+			{
 				gui_err("base_pkg_err=Failed to load base packages.");
 				goto error;
 			}
 		}
 	}
 	// Set the default package
-	PageManager::SelectPackage("TWRP");
+	PageManager::SelectPackage("OrangeFox");
 #endif
 	return 0;
 
@@ -892,13 +1034,13 @@ extern "C" int gui_start(void)
 	return gui_startPage("main", 1, 0);
 }
 
-extern "C" int gui_startPage(const char *page_name, __attribute__((unused)) const int allow_commands, int stop_on_page_done)
+extern "C" int gui_startPage(const char *page_name, const int allow_commands, int stop_on_page_done)
 {
 	if (!gGuiInitialized)
 		return -1;
 
 	// Set the default package
-	PageManager::SelectPackage("TWRP");
+	PageManager::SelectPackage("OrangeFox");
 
 	input_handler.init();
 #ifndef TW_OEM_BUILD

@@ -46,11 +46,14 @@ extern "C" {
 GUIFill::GUIFill(xml_node<>* node) : GUIObject(node)
 {
 	bool has_color = false;
+	mCircle = NULL;
 	mColor = LoadAttrColor(node, "color", &has_color);
 	if (!has_color) {
 		LOGERR("No color specified for fill\n");
 		return;
 	}
+
+	mIsRounded = LoadAttrString(node, "rounded", "0");
 
 	// Load the placement
 	LoadPlacement(FindNode(node, "placement"), &mRenderX, &mRenderY, &mRenderW, &mRenderH);
@@ -58,13 +61,31 @@ GUIFill::GUIFill(xml_node<>* node) : GUIObject(node)
 	return;
 }
 
+GUIFill::~GUIFill()
+{
+	if (mCircle)
+		gr_free_surface(mCircle);
+}
+
 int GUIFill::Render(void)
 {
 	if (!isConditionTrue())
 		return 0;
 
+	if(mIsRounded == "1") {
+		int w, h, half;
+		half = mRenderH / 2;
+		mCircle = gr_render_circle(half, mColor.red, mColor.green, mColor.blue, mColor.alpha);
+		w = gr_get_width(mCircle);
+		h = gr_get_height(mCircle);
+		mRenderH = h;
+		gr_blit(mCircle, 0, 0, w, h, mRenderX - half, mRenderY);
+		gr_blit(mCircle, 0, 0, w, h, mRenderX + mRenderW + half - mRenderH, mRenderY);
+	}
+
 	gr_color(mColor.red, mColor.green, mColor.blue, mColor.alpha);
 	gr_fill(mRenderX, mRenderY, mRenderW, mRenderH);
+
 	return 0;
 }
 

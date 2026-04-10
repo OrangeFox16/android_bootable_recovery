@@ -2,6 +2,9 @@
 	Copyright 2017 TeamWin
 	This file is part of TWRP/TeamWin Recovery Project.
 
+	Copyright (C) 2018-2025 OrangeFox Recovery Project
+	This file is part of the OrangeFox Recovery Project.
+
 	TWRP is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation, either version 3 of the License, or
@@ -81,6 +84,10 @@ public:
 	virtual ~Page();
 
 	std::string GetName(void)   { return mName; }
+	enum class Direction {
+		Up = 1,
+		Down = -1
+	};
 
 public:
 	virtual int Render(void);
@@ -91,6 +98,9 @@ public:
 	virtual int SetKeyBoardFocus(int inFocus);
 	virtual int NotifyVarChange(std::string varName, std::string value);
 	virtual void SetPageFocus(int inFocus);
+	void MoveFocus(Page::Direction direction);
+	void SelectFocusedElement(bool longPressed = false);
+	void SetFocus(int index);
 
 protected:
 	std::string mName;
@@ -98,6 +108,18 @@ protected:
 	std::vector<RenderObject*> mRenders;
 	std::vector<ActionObject*> mActions;
 	std::vector<InputObject*> mInputs;
+
+	int mFocusedObjectIndex = -1;
+	int MoveFocusIndex(Page::Direction direction);
+	void ShiftSlider(Page::Direction direction);
+	void ShiftSliderVal(Page::Direction direction);
+	void MoveFocusInPattern(Page::Direction direction);
+	int sliderStartX;
+	int sliderEndX;
+	int sliderY;
+	bool mFocusSlider = false;
+	bool mFocusSliderVal = false;
+	bool mFocusPatternPassword = false;
 
 	ActionObject* mTouchStart;
 	COLOR mBackground;
@@ -136,6 +158,8 @@ public:
 	int NotifyCharInput(int ch);
 	int SetKeyBoardFocus(int inFocus);
 	int NotifyVarChange(std::string varName, std::string value);
+	void MoveFocus(Page::Direction direction);
+	void SelectFocusedElement(bool longPressed = false);
 
 	void AddStringResource(std::string resource_source, std::string resource_name, std::string value);
 
@@ -148,6 +172,7 @@ protected:
 	ResourceManager* mResources;
 	std::vector<Page*> mPages;
 	Page* mCurrentPage;
+	Page* mCurrentOverlay;
 	std::vector<Page*> mOverlays; // Special case for popup dialogs and the lock screen
 };
 
@@ -188,6 +213,8 @@ public:
 	static void LoadCursorData(xml_node<>* node);
 
 	static HardwareKeyboard *GetHardwareKeyboard();
+	static void MoveFocus(Page::Direction direction);
+	static void SelectFocusedElement(bool longPressed = false);
 
 	static xml_node<>* FindStyle(std::string name);
 	static void AddStringResource(std::string resource_source, std::string resource_name, std::string value);

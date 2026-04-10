@@ -46,6 +46,7 @@ LOCAL_SRC_FILES := \
     progresstracking.cpp \
     startupArgs.cpp \
     twrp-functions.cpp \
+    orangefox.cpp \
     twrpDigestDriver.cpp \
     openrecoveryscript.cpp \
     tarWrite.c \
@@ -127,6 +128,8 @@ LOCAL_SHARED_LIBRARIES += libziparchive libselinux libdl_android.bootstrap
 ifneq ($(wildcard system/core/libsparse/Android.mk),)
 LOCAL_SHARED_LIBRARIES += libsparse
 endif
+
+include $(LOCAL_PATH)/orangefox.mk
 
 ifeq ($(TW_OEM_BUILD),true)
     LOCAL_CFLAGS += -DTW_OEM_BUILD

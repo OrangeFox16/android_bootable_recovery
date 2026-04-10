@@ -9,7 +9,8 @@ bootstrap_go_package {
     srcs: [
         "libguitwrp_defaults.go",
         "../soong/copy.go",
-        "../soong/makevars.go"
+        "../soong/makevars.go",
+        "../orangefox_defaults.go"
     ],
     pluginFor: ["soong_build"]
 }
@@ -21,9 +22,13 @@ libguitwrp_defaults {
 cc_library_static {
     name: "libguitwrp",
     defaults: ["libguitwrp_defaults", "twrp_defaults"],
+    rtti: true,
     cflags: [
         "-fno-strict-aliasing", 
         "-Wno-implicit-fallthrough",
+        "-Wno-unused-parameter",
+        "-Wno-unused-function",
+        "-Wno-unused-variable",
         "-D_USE_SYSTEM_ZIPARCHIVE",
         "-DTWRES=\"/twres/\""
     ],
@@ -38,6 +43,7 @@ cc_library_static {
         "bootable/recovery/twrpinstall/include",
         "bootable/recovery/libpixelflinger/include",
         "bootable/recovery/minuitwrp/include",
+    	"bootable/recovery/Fox_ssl/include",
         "bionic",
         "system/libbase/include",
         "system/core/libcutils/include",
@@ -73,7 +79,10 @@ cc_library_static {
         "patternpassword.cpp",
         "textbox.cpp",
         "terminal.cpp",
-        "twmsg.cpp"
+        "twmsg.cpp",
+        // OrangeFox
+        "gesture.cpp",
+        "battery.cpp"
     ],
     shared_libs: [
         "libminuitwrp",

@@ -3358,6 +3358,14 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 	if (Fstab_Processed())
 		Update_System_Details();
 }
+
+string TWPartitionManager::Get_Internal_Storage_Path() {
+   std::string s = getenv("EXTERNAL_STORAGE");
+   if (s == "") 
+        s = "/sdcard";
+  return s;
+}
+
 string TWPartitionManager::Get_Active_Slot_Suffix() {
 	if (Active_Slot_Display == "A")
 		return "_a";
@@ -3570,6 +3578,34 @@ void TWPartitionManager::Coldboot() {
 
 	if (sysfs_entries.size() > 0)
 		Coldboot_Scan(&sysfs_entries, "/sys/block", 0);
+}
+
+bool TWPartitionManager::Storage_Is_Encrypted(void)
+{
+  // FBE only
+  if (TWFunc::Path_Exists("/data/unencrypted/key/version") || DataManager::GetIntValue(TW_IS_FBE) == 1)
+ 	return true;
+
+  // Generic
+  if (DataManager::GetIntValue(FOX_ENCRYPTED_DEVICE) == 1)
+ 	return true;
+
+  if (DataManager::GetIntValue(TW_IS_ENCRYPTED) == 1 && DataManager::GetIntValue(TW_IS_DECRYPTED) == 1)
+	return false;
+
+  // FDE
+  string res = "";
+  string cmd = "cat /proc/mounts | grep /data | grep dm-";
+  TWFunc::Exec_Cmd(cmd, res);
+  //gui_print("RESULT of command:\n|%s|\n is |%s|\n", cmd.c_str(), res.c_str());
+  if (res.empty())
+     return false;
+  else
+     return true;
+/*
+  TWPartition *Part = Find_Partition_By_Path("/data");
+  return (Part && Part->Is_Encrypted && !Part->Is_Decrypted);
+*/
 }
 
 bool TWPartitionManager::Prepare_Empty_Folder(const std::string& Folder) {
@@ -3842,4 +3878,20 @@ bool TWPartitionManager::Check_Pending_Merges() {
 		return false;
 	}
 	return true;
+}
+
+std::pair<string, string> TWPartitionManager::Get_Partition_Checksums(TWPartition* twrpPart) {
+	std::pair<string, string> res;
+	string command = "/system/bin/sha256sum -b " + twrpPart->Primary_Block_Device;
+	if (!twrpPart)
+		return res;
+
+	if (twrpPart->Is_SlotSelect()) {
+		TWFunc::Exec_Cmd(command + "_a", res.first);
+		TWFunc::Exec_Cmd(command + "_b", res.second);
+	} else {
+		TWFunc::Exec_Cmd(command, res.first);
+	}
+
+	return res;
 }

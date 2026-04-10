@@ -64,19 +64,22 @@ void InfoManager::Clear(void) {
 static bool twPersistFirstMounted = false;
 
 void twPersistMount(void) {
-	twPersistFirstMounted = PartitionManager.Is_Mounted_By_Path(TW_PERSIST_DIR);
-	if (!twPersistFirstMounted) PartitionManager.Mount_By_Path(TW_PERSIST_DIR, false);
+	twPersistFirstMounted = PartitionManager.Is_Mounted_By_Path(FOX_SETTINGS_ROOT_DIRECTORY);
+	if (!twPersistFirstMounted)
+		PartitionManager.Mount_By_Path(FOX_SETTINGS_ROOT_DIRECTORY, false);
 }
 
 void twPersistUnMount(void) {
-	if (!twPersistFirstMounted) PartitionManager.UnMount_By_Path(TW_PERSIST_DIR, false);
+	if (!twPersistFirstMounted)
+		PartitionManager.UnMount_By_Path(FOX_SETTINGS_ROOT_DIRECTORY, false);
 }
 
 int InfoManager::LoadValues(void) {
 	string str;
 
 	twPersistMount();
-	if (!TWFunc::Path_Exists(string(TW_PERSIST_DIR))) mkdir(TW_PERSIST_DIR, 0777);
+	if (!TWFunc::Path_Exists(string(FOX_SETTINGS_ROOT_DIRECTORY)))
+		mkdir(FOX_SETTINGS_ROOT_DIRECTORY, 0777);
 
 	// Read in the file, if possible
 	FILE* in = fopen(File.c_str(), "rb");

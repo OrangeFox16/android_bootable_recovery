@@ -5,10 +5,11 @@
 
 	<resources>
 		<!-- Font overrides - only change these if your language requires special characters -->
-		<resource name="font_l" type="fontoverride" filename="RobotoCondensed-Regular.ttf" scale="100" />
-		<resource name="font_m" type="fontoverride" filename="RobotoCondensed-Regular.ttf" scale="100" />
-		<resource name="font_s" type="fontoverride" filename="RobotoCondensed-Regular.ttf" scale="100" />
-		<resource name="fixed" type="fontoverride" filename="DroidSansMono.ttf" scale="100" />
+		<resource name="font_l" type="fontoverride" filename="Roboto-Medium.ttf" scale="100" />
+		<resource name="font_m" type="fontoverride" filename="Roboto-Medium.ttf" scale="100" />
+		<resource name="font_s" type="fontoverride" filename="Roboto-Medium.ttf" scale="100" />
+		<resource name="fixed" type="fontoverride" filename="DroidSansFallback.ttf" scale="100" />
+
 		<!-- Partition display names -->
 		<string name="system">Sistema</string>
 		<string name="system_image">Imagem do sistema</string>
@@ -22,7 +23,6 @@
 		<string name="sdcard">Cartão SD</string>
 		<string name="internal">Armazenamento interno</string>
 		<string name="microsd">Cartão SD</string>
-		<string name="usbotg">USB OTG</string>
 		<string name="android_secure">Android seguro</string>
 		<string name="dalvik">Cache Dalvik / ART</string>
 		<!-- This is a rarely used partition on a Micro SD card for a very old app2sd system -->
@@ -30,6 +30,7 @@
 		<string name="adopted_data">Dados adoptados</string>
 		<string name="adopted_storage">Armazenamento adoptado</string>
 		<string name="autostorage">Armazenamento</string>
+
 		<!-- GUI XML strings -->
 		<string name="twrp_header">Team Win Recovery Project</string>
 		<string name="twrp_watch_header">TWRP %tw_version%</string>
@@ -48,6 +49,7 @@
 		<string name="tab_screen">ECRÃ</string>
 		<string name="tab_vibration">VIBRAÇÃO</string>
 		<string name="tab_language">IDIOMA</string>
+
 		<string name="install_btn">Instalar</string>
 		<string name="wipe_btn">Apagar</string>
 		<string name="backup_btn">Backup</string>
@@ -288,7 +290,7 @@
 		<string name="rb_recovery_btn">Recovery</string>
 		<string name="rb_bootloader_btn">Bootloader</string>
 		<string name="rb_download_btn">Descarregar</string>
-		<string name="rb_edl_btn">EDL</string>
+		<string name="rb_edl_btn">Edl</string>
 		<string name="turning_off">A desligar...</string>
 		<string name="swipe_power_off">      Deslize para desligar</string>
 		<string name="swipe_power_off_s">Desligar</string>
@@ -489,11 +491,11 @@
 		<string name="repacking_image">A fazer Repack de {1}...</string>
 		<string name="repack_image_hdr">Selecionar Imagem</string>
 		<string name="fix_recovery_loop">Resolver Bootloop da Recovery</string>
-		<string name="fix_recovery_loop_confirm">Resolver Bootloop?</string>
 		<string name="fixing_recovery_loop"> A Resolver Bootloop...</string>
 		<string name="fix_recovery_loop_complete">Resolução do Bootloop da Recovery concluída</string>
 		<string name="fixing_recovery_loop_patch">A aplicar o patch ao kernel...</string>
 		<string name="fix_recovery_loop_patch_error">Erro ao aplicar o patch ao kernel.</string>
+
 		<!-- Various console messages - these consist of user displayed messages, oftentimes errors -->
 		<string name="no_kernel_selinux">O Kernel não tem suporte para leitura de contextos do SELinux.</string>
 		<string name="full_selinux">Suporte completo ao SELinux.</string>

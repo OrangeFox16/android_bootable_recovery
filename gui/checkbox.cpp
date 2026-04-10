@@ -2,6 +2,9 @@
 	Copyright 2017 TeamWin
 	This file is part of TWRP/TeamWin Recovery Project.
 
+	Copyright (C) 2018-2025 OrangeFox Recovery Project
+	This file is part of the OrangeFox Recovery Project.
+
 	TWRP is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation, either version 3 of the License, or
@@ -129,6 +132,22 @@ int GUICheckbox::Render(void)
 	}
 	if (mLabel)
 		ret = mLabel->Render();
+
+	if (HasFocus()) {
+	    gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
+
+	    const int x = mRenderX - 2;
+	    const int y = mRenderY - 2;
+	    const int w = mCheckW + 4;
+	    const int h = mCheckH + 4;
+	    const int thickness = 3;
+
+	    gr_fill(x, y, w, thickness);
+	    gr_fill(x, y + h - thickness, w, thickness);
+	    gr_fill(x, y, thickness, h);
+	    gr_fill(x + w - thickness, y, thickness, h);
+        }
+
 	mLastState = lastState;
 	mRendered = true;
 	return ret;

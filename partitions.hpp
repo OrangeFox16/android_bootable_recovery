@@ -412,6 +412,13 @@ public:
 	bool Unmap_Super_Devices();                                               // Unmap super devices in TWRP
 	bool Check_Pending_Merges();                                              // Check and run pending merges on data for VAB devices
     bool Disable_AVB2(bool Display_Info);                                     // Disable AVB 2.0
+	
+	// missing OrangeFox/TWRP16-added declarations
+	int Run_OTA_Survival_Backup(bool adbbackup);
+	int Run_OTA_Survival_Restore(const std::string& restore_path);
+	std::string Get_Internal_Storage_Path();
+	bool Storage_Is_Encrypted();
+	std::pair<std::string, std::string> Get_Partition_Checksums(TWPartition* target_partition);
 
 private:
 	void Setup_Settings_Storage_Partition(TWPartition* Part);                 // Sets up settings storage
