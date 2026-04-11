@@ -2555,15 +2555,19 @@ bool TWPartition::Wipe_F2FS() {
 	if (!UnMount(true))
 		return false;
 
+	/*
+	* This function now supports casefolding and project id quota.
+	* Your device tree should include this:
+		$(call inherit-product, $(SRC_TARGET_DIR)/product/emulated_storage.mk)
+	*/
 	if (TWFunc::Path_Exists("/system/bin/make_f2fs"))
 		f2fs_command = "/system/bin/make_f2fs -g android";
 	else {
-		LOGINFO("make_f2fs binary not found, using rm -rf to wipe.\n");
+		LOGINFO("mkfs_f2fs binary not found, using rm -rf to wipe.\n");
 		return Wipe_RMRF();
 	}
 
 	bool NeedPreserveFooter = true;
-	bool needs_casefold = false;
 
 	Find_Actual_Block_Device();
 	if (!Is_Present) {
@@ -2572,6 +2576,13 @@ bool TWPartition::Wipe_F2FS() {
 		return false;
 	}
 
+    	if (!Needs_Fs_Compress) {
+    		Needs_Fs_Compress = android::base::GetBoolProperty("vold.has_compress", false);
+    		if (Needs_Fs_Compress)
+			LOGINFO("Enabling 'fs compression' ('vold.has_compress=true')\n");
+    	}
+
+	bool needs_casefold = false;
 	if (Mount_Point == "/data") {
 		needs_casefold = android::base::GetBoolProperty("external_storage.casefold.enabled", false);
 	}
@@ -2582,15 +2593,18 @@ bool TWPartition::Wipe_F2FS() {
 
 	if (NeedPreserveFooter)
 		Length < 0 ? dev_sz += Length : dev_sz -= CRYPT_FOOTER_OFFSET;
+
 	char dev_sz_str[48];
 	sprintf(dev_sz_str, "%llu", (dev_sz / 4096));
 
 	// Project ID
 	f2fs_command += " -O project_quota,extra_attr";
 
-	if(needs_casefold)
+	// Casefolding for /data
+	if (needs_casefold)
 		f2fs_command += " -O casefold -C utf8";
 
+	// FsCompress
 	if (Needs_Fs_Compress)
 		f2fs_command += " -O compression,extra_attr";
 
@@ -2608,12 +2622,29 @@ bool TWPartition::Wipe_F2FS() {
 			Crypto_Key_Location != "footer") {
 		NeedPreserveFooter = false;
 	}
-	LOGINFO("make_f2fs command: %s\n", f2fs_command.c_str());
+	LOGINFO("mkfs_f2fs command: %s\n", f2fs_command.c_str());
 
-	#ifdef TW_USE_DMCTL
+	// try to unbind /sdcard if it is still bind-mounted
+	#ifdef OF_UNBIND_SDCARD_F2FS
+		if (Mount_Point == "/data") {
+			LOGINFO("OrangeFox: bind-unmounting /sdcard before f2fs data format...\n");
+			usleep(32768);
+			string nul;
+			TWFunc::Exec_Cmd("umount /sdcard", nul);
+			usleep(32768);
+		}
+	#endif
+
+	#ifdef OF_USE_DMCTL
 	if (TWFunc::Path_Exists("/dev/block/mapper/userdata")) {
-		LOGINFO("TWRP: running dmctl before formatting...\n");
+		LOGINFO("OrangeFox: running dmctl before formatting...\n");
 		TWFunc::Exec_Cmd("dmctl delete userdata", false);
+		usleep(32768);
+	}
+	#elif defined(FOX_USE_DMSETUP)
+	if (TWFunc::Path_Exists("/dev/block/mapper/userdata")) {
+		LOGINFO("OrangeFox: running dmsetup before formatting...\n");
+		TWFunc::Exec_Cmd("dmsetup remove -f userdata", false);
 		usleep(32768);
 	}
 	#endif
