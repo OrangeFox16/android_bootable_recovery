@@ -39,6 +39,11 @@
 					<icon res="help"/>
 					<action function="overlay">dialog_lost_info</action>
 				</listitem>
+				<listitem name="{@wlan_menu}">
+					<condition var1="tw_disable_network" var2="0"/>
+					<icon res="bs_adv_wlan"/>
+					<action function="page">wlan</action>
+				</listitem>
 				<listitem name="{@mount_hdr}">
 					<icon res="bs_adv_mount"/>
 					<action function="page">mount</action>
