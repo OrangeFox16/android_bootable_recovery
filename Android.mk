@@ -315,7 +315,10 @@ ifneq ($(TW_NO_NETWORK), true)
         index.html \
         microhttpd.rc \
         ttyd \
-        ttyd.rc
+        ttyd.rc \
+        wlan_connect \
+        wlan_scan \
+        wlan_info
 endif
 ifneq ($(TW_ADDITIONAL_APEX_FILES),)
     LOCAL_CFLAGS += -DTW_ADDITIONAL_APEX_FILES=$(TW_ADDITIONAL_APEX_FILES)

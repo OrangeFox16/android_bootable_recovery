@@ -1254,5 +1254,18 @@
 		<string name="enable_hw_control_2">the interface using the hardware</string>
 		<string name="enable_hw_control_3">volume and power buttons.</string>
 		<string name="enable_hw_control_4">Gestures will be disabled. Proceed?</string>
+
+		<!-- WLAN -->
+		<string name="wlan_menu">WLAN</string>
+		<string name="wlan_scan">Scan Network</string>
+		<string name="wlan_scanning">Network Scanning...</string>
+		<string name="wlan_connect">Connect Network</string>
+		<string name="wlan_status">Get Network Info</string>
+		<string name="wlan_test">Test Network Connection</string>
+		<string name="wlan_list">WLAN List</string>
+		<string name="wlan_select">Select to connect</string>
+		<string name="wlan_password">Enter password for WLAN</string>
+		<string name="wlan_encryption">WLAN Encryption:</string>
+		<string name="wlan_empty">Scan failed or list empty, rescan please!</string>
 	</resources>
 </language>
