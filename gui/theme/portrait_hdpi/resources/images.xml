@@ -163,6 +163,7 @@
 		<image name="bs_adv_adb" filename="Default/Icons/adb" retainaspect="1"/>
 		<image name="bs_adv_frp" filename="Default/Icons/frp" retainaspect="1"/>
 		<image name="bs_adv_aroma" filename="Default/Icons/aroma" retainaspect="1"/>
+		<image name="bs_adv_wlan" filename="Default/Icons/wlan" retainaspect="1"/>
 		<image name="utils" filename="Default/Icons/utils" retainaspect="1"/>
 		<image name="hide" filename="Default/Icons/hide" retainaspect="1"/>
 		<image name="info" filename="Default/Icons/info" retainaspect="1"/>

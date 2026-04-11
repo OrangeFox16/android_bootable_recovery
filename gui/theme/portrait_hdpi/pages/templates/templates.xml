@@ -1001,5 +1001,119 @@
 				<text>%ft_inf_sha5%</text>
 			</input>
 		</template>
+
+		<template name="wlan_password_page">
+			<template name="navbar_home"/>
+			<template name="navbar_console"/>
+			<template name="navbar_key"/>
+
+			<action>
+				<condition var1="wlanencryption" op="=" var2="OPEN"/>
+				<action function="page">wlan</action>
+				<action function="overlay">console</action>
+				<action function="terminalcommand">wlan_connect "%wlanselectedid%"</action>
+			</action>
+
+			<image>
+				<image resource="actionbar_encr_ena"/>
+				<placement x="%center_x%" y="%centered_title_1%" placement="4"/>
+			</image>
+
+			<text style="text_ab_subtitle">
+				<placement x="%center_x%" y="%centered_title_2%" placement="4"/>
+				<text>%wlanselectedid%</text>
+			</text>
+
+			<text style="text_body2_hl">
+				<placement x="%col1_x_indent%" y="%row2_1a_y%"/>
+				<text>{@wlan_encryption} %wlanencryption%</text>
+			</text>
+			
+			<text style="caption_hl">
+				<placement x="%col1_x_caption%" y="%row2_3a_y%"/>
+				<text>{@decrypt_data_enter_pass}</text>
+			</text>
+
+			<input>
+				<placement x="%col1_x_caption%" y="%row3_1a_y%" w="%input_backup_w%" h="%input_height%"/>
+				<text>%tw_crypto_display%</text>
+				<data name="wlan_password" mask="*" maskvariable="pass_enter_mask"/>
+				<restrict minlen="8" maxlen="254"/>
+				<action function="page">wlan</action>
+				<action function="overlay">console</action>
+				<action function="terminalcommand">wlan_connect "%wlanselectedid%" %wlan_password%</action>
+			</input>
+
+			<input>
+				<condition var1="of_show_pass" var2="1"/>
+				<placement x="%col1_x_caption%" y="%row3_1a_y%" w="%input_backup_w%" h="%input_height%"/>
+				<text>%tw_crypto_password%</text>
+				<data name="wlan_password"/>
+				<cursor color="%transparent%" hasfocus="0" width="0"/>
+				<restrict disable="1"/>
+				<action function="page">wlan_connect</action>
+			</input>
+
+			<button>
+				<placement x="%ab_btn1_x%" y="%row3_2_y%" placement="4"/>
+				<image resource="actionbar_show"/>
+				<action function="set">of_show_pass=1</action>
+			</button>
+
+			<fill color="%accent%">
+				<condition var1="tw_password_fail" op="!=" var2="1"/>
+				<placement x="%col1_x_caption%" y="%row3_2a_y%" w="%input_backup_w%" h="%input_line_height%" placement="1"/>
+			</fill>
+
+			<fill color="%text_fail%">
+				<condition var1="tw_password_fail" var2="1"/>
+				<placement x="%col1_x_caption%" y="%row3_2a_y%" w="%input_backup_w%" h="%input_line_height%" placement="1"/>
+			</fill>
+
+			<text style="text_input_fail">
+				<condition var1="tw_password_fail" var2="1"/>
+				<placement x="%col1_x_caption%" y="%row3_2a_y%"/>
+				<text>{@restore_dec_fail}</text>
+			</text>
+
+			<text style="caption_hl">
+				<condition var1="of_decrypt_from_menu" var2="2"/>
+				<placement x="%col1_x_caption%" y="%row4_1_y%"/>
+				<text>{@decrypt_data_user}</text>
+			</text>
+
+			<text style="text_body1">
+				<condition var1="of_decrypt_from_menu" var2="2"/>
+				<placement x="%col1_x_caption%" y="%row4_2_y%"/>
+				<text>%tw_crypto_user_display%</text>
+			</text>
+
+			<button style="menu_btn">
+				<condition var1="of_decrypt_from_menu" var2="2"/>
+				<placement x="%col1_x_caption%" y="%row4_1_y%" w="%input_w%" h="%mb_h_hide%"/>
+				<action function="page">wlan_list</action>
+			</button>
+
+			<template name="gestures"/>
+
+			<!-- Crutch; TWRP can't focus on right input so just prevent user from tapping anywhere except
+				 navbar and keyboard switcher -->
+			<button>
+				<condition var1="of_show_pass" var2="1"/>
+				<fill color="%transparent%"/>
+				<placement x="0" y="0" w="%screen_w%" h="%screen_h%"/>
+				<action function="set">of_show_pass=0</action>
+			</button>
+
+			<action>
+				<touch key="home"/>
+				<action function="page">wlan_list</action>
+			</action>
+
+			<action>
+				<touch key="back"/>
+				<action function="page">wlan_list</action>
+			</action>
+		</template>
 	</templates>
 </recovery>
