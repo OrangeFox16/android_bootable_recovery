@@ -1274,7 +1274,7 @@ void TWPartition::Setup_Data_Media() {
 			Make_Dir("/sdcard", false);
 			Symlink_Mount_Point = "/sdcard";
 		}
-		#ifdef TW_PREPARE_DATA_MEDIA_EARLY
+		#ifdef OF_FIX_DECRYPTION_ON_DATA_MEDIA
 		if (Mount(false) && TWFunc::Path_Exists(Mount_Point + "/media/0")) {
 		#else
 		Mount(false);
@@ -1283,35 +1283,40 @@ void TWPartition::Setup_Data_Media() {
 			Storage_Path = Mount_Point + "/media/0";
 			Symlink_Path = Storage_Path;
 			DataManager::SetValue(TW_INTERNAL_PATH, Mount_Point + "/media/0");
-			#ifndef TW_INCLUDE_CRYPTO
-				DataManager::SetValue("tw_settings_path", TW_STORAGE_PATH);
-			#endif
 			UnMount(true);
 		}
 		DataManager::SetValue("tw_has_internal", 1);
 		DataManager::SetValue("tw_has_data_media", 1);
 		backup_exclusions.add_absolute_dir("/data/data/com.google.android.music/files");
-		backup_exclusions.add_absolute_dir("/data/per_boot"); // DJ9,14Jan2020 - exclude this dir to prevent "error 255" on AOSP ROMs that create and lock it
-		backup_exclusions.add_absolute_dir("/data/vendor/dumpsys");
 		backup_exclusions.add_absolute_dir("/data/cache");
-        backup_exclusions.add_absolute_dir("/data/misc/apexdata/com.android.art"); // exclude this dir to prevent "error 255" on AOSP Android 12
-		backup_exclusions.add_absolute_dir("/data/extm"); //exclude this dir to prevent "error 255" on MIUI
+		// -- extra excludes, to address various causes of "error 255"
+		backup_exclusions.add_absolute_dir("/data/per_boot"); // DJ9,14Jan2020 - exclude this dir to prevent "error 255" on AOSP ROMs that create and lock it
+		backup_exclusions.add_absolute_dir("/data/extm"); // DJ9,5July2020 - exclude this dir to prevent "error 255" on MIUI 12 ROMs
+		backup_exclusions.add_absolute_dir("/data/bootchart"); // DJ9,3Aug2020 - exclude this dir to error 255
+		backup_exclusions.add_absolute_dir("/data/vendor/dumpsys"); // DJ9,3Aug2020 - exclude this dir to error 255
+		backup_exclusions.add_absolute_dir("/data/misc/apexdata/com.android.art"); // exclude this dir to prevent "error 255" on AOSP Android 12
+		backup_exclusions.add_absolute_dir("/data/fonts");
+		backup_exclusions.add_absolute_dir("/data/nandswap");
+		// ---
+
 		backup_exclusions.add_absolute_dir("/data/gsi"); // Contains huge files (DSU System image + Userdata image), and won't work after restoration (requires configuration files in metadata)
 		backup_exclusions.add_absolute_dir("/data/adb/ksu/modules.img"); //After ksu 0.8.x the modules.img file became 1tb, which is inhibiting the execution of backups
 		wipe_exclusions.add_absolute_dir(Mount_Point + "/misc/vold"); // adopted storage keys
 		ExcludeAll(Mount_Point + "/system/storage.xml");
-		#ifdef TW_WORKAROUND_BACKUP_BUG
-		backup_exclusions.add_absolute_dir("/data/data"); // temporary workaround for error 255 when restoring data backups in 16 branch builds
-		#endif
 
+		// Fix problems with restoring data partition backups
+		#ifdef OF_WORKAROUND_BACKUP_BUG
+		backup_exclusions.add_absolute_dir("/data/data"); // temporary workaround for error 255 when restoring data backups in 14.1 branch builds
+		#endif
 		backup_exclusions.add_absolute_dir("/data/system/users/0/package-restrictions.xml");
+		backup_exclusions.add_absolute_dir("/data/system/users/0/package-restrictions.xml.reservecopy");
 
 		// board-customisable exclusions
 		#ifdef TW_BACKUP_EXCLUSIONS
 			std::vector<std::string> user_extra_exclusions = TWFunc::Split_String(TW_BACKUP_EXCLUSIONS, ",");
 			std::string s1;
 			for (const std::string& extra_x : user_extra_exclusions) {
-				s1 = android::base::Trim(extra_x);
+				s1 = TWFunc::trim(extra_x);
 				if (!s1.empty()) {
 					backup_exclusions.add_absolute_dir(s1);
 					LOGINFO("Adding user-defined path '%s' to the backup exclusions\n", s1.c_str());
@@ -1337,6 +1342,11 @@ void TWPartition::Setup_Data_Media() {
 		}
 	}
 	ExcludeAll(Mount_Point + "/media");
+#ifdef FOX_MISCELLANEOUS_ROOT_DIRECTORY
+	if (TWFunc::Get_Root_Path(Fox_Home) == Mount_Point) {
+		Storage_Path = FOX_MISCELLANEOUS_ROOT_DIRECTORY;
+	}
+#endif
 }
 
 void TWPartition::Find_Real_Block_Device(string& Block, bool Display_Error) {
@@ -2730,9 +2740,9 @@ bool TWPartition::Wipe_Data_Without_Wiping_Media_Func(const string& parent __unu
 					closedir(d);
 					return false;
 				}
-				#ifdef TW_WORKAROUND_BACKUP_BUG
-				if (dir == "/data/data/") // temporary workaround for error 255 when restoring data backups in 16 branch builds
-					LOGINFO("DEBUG: TWRP: skipped /data/data/\n");
+				#ifdef OF_WORKAROUND_BACKUP_BUG
+				if (dir == "/data/data/") // temporary workaround for error 255 when restoring data backups in 14.1 branch builds
+					LOGINFO("DEBUG: OrangeFox: skipped /data/data/\n");
 				else
 				#endif
 				rmdir(dir.c_str());
@@ -2802,8 +2812,10 @@ bool TWPartition::Backup_Tar(PartitionSettings *part_settings, pid_t *tar_fork_p
 	if (!Mount(true))
 		return false;
 
-	TWFunc::GUI_Operation_Text(TW_BACKUP_TEXT, Backup_Display_Name, gui_parse_text("{@backing}"));
-	gui_msg(Msg("backing_up=Backing up {1}...")(Backup_Display_Name));
+  	if (DataManager::GetIntValue(FOX_RUN_SURVIVAL_BACKUP) != 1) {
+      	   TWFunc::GUI_Operation_Text(TW_BACKUP_TEXT, Backup_Display_Name, gui_parse_text("{@backing}"));
+	   gui_msg(Msg("backing_up=Backing up {1}...")(Backup_Display_Name));
+	}
 
 	DataManager::GetValue(TW_USE_COMPRESSION_VAR, tar.use_compression);
 
@@ -2824,13 +2836,13 @@ bool TWPartition::Backup_Tar(PartitionSettings *part_settings, pid_t *tar_fork_p
 
 	Backup_FileName = Backup_Name + "." + Current_File_System + ".win";
 	Full_FileName = part_settings->Backup_Folder + "/" + Backup_FileName;
-	if (Has_Data_Media)
-		#ifdef TW_WORKAROUND_BACKUP_BUG
+	if (Has_Data_Media) {
+		#ifdef OF_WORKAROUND_BACKUP_BUG
 		gui_msg(Msg(msg::kWarning, "backup_storage_warning=Backups of {1} do not include any files in internal storage such as pictures or downloads.")(Display_Name));
 		#else
-		LOGERR("Backups of %s are currently BROKEN in the 16 branch. There is little point in making backups of %s\n\n", Display_Name.c_str(), Display_Name.c_str());
+		LOGERR("Backups of %s are currently BROKEN in the 14.1 branch. There is little point in making backups of %s\n\n", Display_Name.c_str(), Display_Name.c_str());
 		#endif
-
+	}
 	if (Mount_Point == "/data" && DataManager::GetIntValue(TW_IS_FBE)) {
 		std::vector<users_struct>::iterator iter;
 		std::vector<users_struct>* userList = PartitionManager.Get_Users_List();
