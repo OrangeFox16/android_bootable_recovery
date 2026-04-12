@@ -1257,6 +1257,8 @@
 
 		<!-- WLAN -->
 		<string name="wlan_menu">WLAN</string>
+		<string name="wlan_start">Start WLAN</string>
+		<string name="wlan_starting">WLAN Starting...</string>
 		<string name="wlan_scan">Scan Network</string>
 		<string name="wlan_scanning">Network Scanning...</string>
 		<string name="wlan_connect">Connect Network</string>

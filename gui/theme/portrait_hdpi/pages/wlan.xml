@@ -12,18 +12,28 @@
 
 			<listbox style="btn_list">
 				<placement x="0" y="%ab_h%" w="%screen_w%" h="%files_np_w%"/>
+
+		<listitem name="{@wlan_start}">
+					<icon res="info"/>
+					<action function="page">wlan</action>
+					<action function="overlay">console</action>
+					<action function="terminalcommand">wlan_start</action>
+				</listitem>
+
                 <listitem name="{@wlan_scan}">
 					<icon res="bs_btn_wut"/>
 					<action function="page">wlan_wait</action>
 					<action function="terminalcommand">wlan_scan</action>
 					<action function="page">wlan_list</action>
 				</listitem>
+
                 <listitem name="{@wlan_status}">
 					<icon res="info"/>
 					<action function="page">wlan</action>
 					<action function="overlay">console</action>
 					<action function="terminalcommand">wlan_info</action>
 				</listitem>
+
                 <listitem name="{@wlan_test}">
 					<icon res="bs_adv_term"/>
 					<action function="page">wlan</action>

@@ -316,6 +316,7 @@ ifneq ($(TW_NO_NETWORK), true)
         microhttpd.rc \
         ttyd \
         ttyd.rc \
+        wlan_start \
         wlan_connect \
         wlan_scan \
         wlan_info
