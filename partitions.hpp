@@ -423,6 +423,8 @@ public:
 	std::string Get_Internal_Storage_Path();
 	bool Storage_Is_Encrypted();
 	std::pair<std::string, std::string> Get_Partition_Checksums(TWPartition* target_partition);
+	bool Mount_Super_Toggle(const string& arg, bool user_toggle = false);	  // Changes Mount_Read_Only flag for all dynamic partitions
+	void Fox_Set_Dynamic_Partition_Props();					  // Set the OrangeFox dynamic partitions props
 
 private:
 	void Setup_Settings_Storage_Partition(TWPartition* Part);                 // Sets up settings storage

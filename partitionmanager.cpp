@@ -717,6 +717,49 @@ void TWPartitionManager::Setup_Android_Secure_Location(TWPartition* Part) {
 		Part->Setup_AndSec();
 }
 
+void TWPartitionManager::Fox_Set_Dynamic_Partition_Props() {
+  	if (Get_Super_Status()) {
+		if (TWFunc::Fox_Property_Get("fox_dynamic_device") == "0") {
+			DataManager::SetValue("fox_dynamic_device", "0");
+			TWFunc::Fox_Property_Set("orangefox.super.partition", "false");
+			DataManager::SetValue(TW_IS_SUPER, "0");
+		}
+		else {
+			TWFunc::Fox_Property_Set("orangefox.super.partition", "true");
+			DataManager::SetValue("fox_dynamic_device", "1");
+			DataManager::SetValue(TW_IS_SUPER, "1");
+		}
+	}
+	else {
+		TWFunc::Fox_Property_Set("orangefox.super.partition", "false");
+		DataManager::SetValue("fox_dynamic_device", "0");
+		DataManager::SetValue(TW_IS_SUPER, "0");
+	}
+
+  	TWPartition* Part;
+  	std::vector < TWPartition * >::iterator iter;
+  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+       		//Output_Partition((*iter));
+       		Part = *iter;
+       		if (Part->Mount_Point == "/vendor") {
+		   TWFunc::Fox_Property_Set("orangefox.vendor.mount_point", Part->Mount_Point);
+		   TWFunc::Fox_Property_Set("orangefox.vendor.block_device", Part->Actual_Block_Device);
+		}
+		else if (Part->Mount_Point == "/product") {
+		   TWFunc::Fox_Property_Set("orangefox.product.mount_point", Part->Mount_Point);
+		   TWFunc::Fox_Property_Set("orangefox.product.block_device", Part->Actual_Block_Device);
+		}
+		else if (Part->Mount_Point == Get_Android_Root_Path()) {
+		   TWFunc::Fox_Property_Set("orangefox.system.mount_point", Part->Mount_Point);
+		   TWFunc::Fox_Property_Set("orangefox.system.block_device", Part->Actual_Block_Device);
+		}
+		else if (Part->Mount_Point == "/super") {
+		   TWFunc::Fox_Property_Set("orangefox.super.mount_point", Part->Mount_Point);
+		   TWFunc::Fox_Property_Set("orangefox.super.block_device", Part->Actual_Block_Device);
+		}
+    	}
+}
+
 void TWPartitionManager::Output_Partition_Logging(void) {
 	std::vector<TWPartition*>::iterator iter;
 
@@ -3973,4 +4016,31 @@ std::pair<string, string> TWPartitionManager::Get_Partition_Checksums(TWPartitio
 	}
 
 	return res;
+}
+
+bool TWPartitionManager::Mount_Super_Toggle(const string& arg, bool user_toggle) {
+	bool found_rw = false; // if arg == 0, check if at least one partition can be mounted in r/w mode
+	std::vector<TWPartition*>::iterator iter;
+	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+		if ((*iter)->Is_Super) {
+			bool need_remount = (*iter)->Is_Mounted() && (*iter)->UnMount(false);
+
+			if (arg == "0" && (*iter)->ReMount_RW(false)) {	// Check the possibility of mounting in r/w, keep Mount_Read_Only flag if unable to mount
+				(*iter)->Change_Mount_Read_Only(false);
+				found_rw = true;
+			} else {
+				(*iter)->Change_Mount_Read_Only(true);
+			}
+
+			if (need_remount)
+				(*iter)->Mount(false);
+			else
+				(*iter)->UnMount(false);
+		}
+	}
+
+	if (user_toggle && arg == "0" && !found_rw && Find_Partition_By_Path(Get_Android_Root_Path()) && Find_Partition_By_Path(Get_Android_Root_Path())->Current_File_System == "erofs")
+		gui_msg(Msg(msg::kWarning, "erofs_is_ro_fs=EROFS is a read-only file system and cannot be mounted in read/write mode!"));
+
+	return arg == "0" ? found_rw : true;
 }
