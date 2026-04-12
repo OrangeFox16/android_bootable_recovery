@@ -356,6 +356,7 @@ public:
 	int Repair_By_Path(string Path, bool Display_Error);                      // Repairs a partition based on path
 	int Resize_By_Path(string Path, bool Display_Error);                      // Resizes a partition based on path
 	void Update_System_Details();                                             // Updates fstab, file systems, sizes, etc.
+	void Update_System_Details_OTA_Survival();                                // Updates fstab, file systems, sizes, etc.
 	int Decrypt_Device(string Password, int user_id = 0);                     // Attempt to decrypt any encrypted partitions
 	void Parse_Users();                                                       // Parse FBE users
 	int usb_storage_enable(void);                                             // Enable USB storage mode
@@ -386,6 +387,7 @@ public:
 	void Remove_Partition_By_Path(string Path);                               // Removes / erases a partition entry from the partition list
 	bool Prepare_All_Super_Volumes();										  // Prepare all known super volumes from super partition
 	bool Flash_Image(string& path, string& filename);                         // Flashes an image to a selected partition from the partition list
+	bool Flash_Repacked_Image(string& path, string& filename, bool recovery); // Reflash repacked image...
 	bool Restore_Partition(struct PartitionSettings *part_settings);          // Restore the partitions based on type
 	TWAtomicInt stop_backup;
 	void Override_Active_Slot(const string& Slot);                            // Override the active slot for repacking
@@ -426,6 +428,9 @@ public:
 	bool Mount_Super_Toggle(const string& arg, bool user_toggle = false);	  // Changes Mount_Read_Only flag for all dynamic partitions
 	void Fox_Set_Dynamic_Partition_Props();					  // Set the OrangeFox dynamic partitions props
 
+#ifdef TW_HAS_MTP
+	bool is_MTP_Enabled(void);						  // returns whether MTP is already enabled
+#endif
 private:
 	void Setup_Settings_Storage_Partition(TWPartition* Part);                 // Sets up settings storage
 	void Setup_Android_Secure_Location(TWPartition* Part);                    // Sets up .android_secure if needed
