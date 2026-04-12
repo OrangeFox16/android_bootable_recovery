@@ -1,6 +1,9 @@
 /*
-	Copyright 2003 to 2021 TeamWin
+	Copyright 2003 to 2017 TeamWin
 	This file is part of TWRP/TeamWin Recovery Project.
+
+	Copyright (C) 2018-2024 OrangeFox Recovery Project
+	This file is part of the OrangeFox Recovery Project.
 
 	TWRP is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -43,6 +46,7 @@
 #include "twcommon.h"
 #include "openrecoveryscript.hpp"
 #include "progresstracking.hpp"
+#include "orangefox.hpp"
 #include "variables.h"
 #include "install/adb_install.h"
 #include "data.hpp"
@@ -100,7 +104,7 @@ int OpenRecoveryScript::copy_script_file(string filename) {
 }
 
 int OpenRecoveryScript::run_script_file(void) {
-	int ret_val = 0, cindex, line_len, i, remove_nl, install_cmd = 0, sideload = 0;
+	int ret_val = 0, cindex, line_len, i, remove_nl, install_cmd = 0, sideload = 0, tmp_tmp = 0;
 	char script_line[SCRIPT_COMMAND_SIZE], command[SCRIPT_COMMAND_SIZE],
 	     value[SCRIPT_COMMAND_SIZE], mount[SCRIPT_COMMAND_SIZE],
 	     value1[SCRIPT_COMMAND_SIZE], value2[SCRIPT_COMMAND_SIZE];
@@ -149,6 +153,7 @@ int OpenRecoveryScript::run_script_file(void) {
 				// Install Zip
 				DataManager::SetValue("tw_action_text2", "Installing Zip");
 				ret_val = Install_Command(value);
+				tmp_tmp = ret_val;
 				install_cmd = -1;
 			} else if (strcmp(command, "wipe") == 0) {
 				// Wipe
@@ -157,6 +162,8 @@ int OpenRecoveryScript::run_script_file(void) {
 				} else if (strcmp(value, "system") == 0 || strcmp(value, "/system") == 0 || strcmp(value, PartitionManager.Get_Android_Root_Path().c_str()) == 0) {
 					PartitionManager.Wipe_By_Path("/system");
 					PartitionManager.Update_System_Details();
+				} else if (strcmp(value, "metadata") == 0 || strcmp(value, "/metadata") == 0 ) {
+					PartitionManager.Wipe_By_Path("/metadata");
 				} else if (strcmp(value, "dalvik") == 0 || strcmp(value, "dalvick") == 0 || strcmp(value, "dalvikcache") == 0 || strcmp(value, "dalvickcache") == 0) {
 					PartitionManager.Wipe_Dalvik_Cache();
 				} else if (strcmp(value, "data") == 0 || strcmp(value, "/data") == 0 || strcmp(value, "factory") == 0 || strcmp(value, "factoryreset") == 0) {
@@ -306,6 +313,27 @@ int OpenRecoveryScript::run_script_file(void) {
 					ret_val = 1;
 				else
 					gui_msg("done=Done.");
+			} else if (strcmp(command, "set_active") == 0) {
+			#ifdef AB_OTA_UPDATER
+				string aSlot = PartitionManager.Get_Active_Slot_Suffix();
+				if (strlen(value) == 0) {
+				    gui_print("Active slot=%s\n", aSlot.c_str());
+				} 
+				else {
+				    string val = value;
+				    gui_print("Active slot=%s\n", aSlot.c_str());
+				    if (val == "_a" || val == "a" || val == "_A" || val == "A")
+				    	aSlot = "A";
+				    else if (val == "_b" || val == "b" || val == "_B" || val == "B")
+				    	aSlot = "B";
+				    LOGINFO("- OrangeFox: changing the active slot to slot %s\n", aSlot.c_str());
+				    PartitionManager.Set_Active_Slot(aSlot);
+				    aSlot = PartitionManager.Get_Active_Slot_Suffix();
+				    gui_print("New active slot=%s\n", aSlot.c_str());
+				}
+			#else
+			 	gui_print("A-only\n");
+			#endif
 			} else if (strcmp(command, "remountrw") == 0) {
 				ret_val = remountrw();
 			} else if (strcmp(command, "mount") == 0) {
@@ -332,7 +360,7 @@ int OpenRecoveryScript::run_script_file(void) {
 					strcpy(mount, PartitionManager.Get_Android_Root_Path().c_str());
 				if (PartitionManager.UnMount_By_Path(mount, true))
 					gui_msg(Msg("unmounted=Unounted '{1}'")(mount));
-			} else if (strcmp(command, "set") == 0) {
+			} else if (strcmp(command, "set") == 0 || strcmp(command, "setval") == 0) {
 				// Set value
 				size_t len = strlen(value);
 				tok = strtok(value, " ");
@@ -364,6 +392,8 @@ int OpenRecoveryScript::run_script_file(void) {
 					TWFunc::tw_reboot(rb_download);
 				else if (strlen(value) && strcmp(value, "edl") == 0)
 					TWFunc::tw_reboot(rb_edl);
+				else if (strlen(value) && strcmp(value, "fastboot") == 0)
+					TWFunc::tw_reboot(rb_fastboot);
 				else
 					TWFunc::tw_reboot(rb_system);
 			} else if (strcmp(command, "cmd") == 0) {
@@ -382,9 +412,11 @@ int OpenRecoveryScript::run_script_file(void) {
 
 				int wipe_cache = 0;
 				string result;
+				// pid_t sideload_child_pid;
 
 				gui_msg("start_sideload=Starting ADB sideload feature...");
 
+				// ret_val = apply_from_adb("/", &sideload_child_pid);
 				Device::BuiltinAction reboot_action = Device::REBOOT_BOOTLOADER;
 				ret_val = twrp_sideload("/", &reboot_action);
 				if (ret_val != 0) {
@@ -400,6 +432,7 @@ int OpenRecoveryScript::run_script_file(void) {
 				PartitionManager.Unlock_Block_Partitions();
 				PartitionManager.Update_System_Details();
 				sideload = 1; // Causes device to go to the home screen afterwards
+
 				pid_t sideload_child_pid = GetMiniAdbdPid();
 				if (sideload_child_pid != 0) {
 					LOGINFO("Signaling child sideload process to exit.\n");
@@ -411,6 +444,7 @@ int OpenRecoveryScript::run_script_file(void) {
 					LOGINFO("Waiting for child sideload process to exit.\n");
 					waitpid(sideload_child_pid, &status, 0);
 				}
+
 				property_set("ctl.start", "adbd");
 				gui_msg("done=Done.");
 			} else if (strcmp(command, "fixperms") == 0 || strcmp(command, "fixpermissions") == 0 || strcmp(command, "fixcontexts") == 0) {
@@ -445,6 +479,13 @@ int OpenRecoveryScript::run_script_file(void) {
 		fclose(fp);
 		unlink(SCRIPT_FILE_TMP);
 		gui_msg("done_ors=Done processing script file");
+		tmp_tmp = ret_val;
+		//* DJ9 - disable auto-reboot after incremental OTA updates? *//
+		if (DataManager::GetIntValue(FOX_DISABLE_OTA_AUTO_REBOOT) == 1) 
+		  {
+		     ret_val = 3; // forces booting to the home page - also runs DM-Verity patch
+		  }
+		//** DJ9
 	} else {
 		gui_msg(Msg(msg::kError, "error_opening_strerr=Error opening: '{1}' ({2})")(SCRIPT_FILE_TMP)(
 			strerror(errno)));
@@ -466,6 +507,12 @@ int OpenRecoveryScript::run_script_file(void) {
 		}
 		gui_msg("done=Done.");
 	}
+
+	// DJ9
+	if (tmp_tmp == 0)
+	   Run_Fox_Process_After_ORS(tmp_tmp);
+	// DJ9
+	
 	if (sideload)
 		ret_val = 1;  // Forces booting to the home page after sideload
 	return ret_val;
@@ -530,10 +577,13 @@ int OpenRecoveryScript::Install_Command(string Zip) {
 
 	ret_val = TWinstall_zip(Zip.c_str(), &wipe_cache);
 	if (ret_val != 0) {
+		LOGINFO ("OpenRecoveryScript::Install_Command() error.\n");
 		gui_msg(Msg(msg::kError, "zip_err=Error installing zip file '{1}'")(Zip));
 		ret_val = 1;
 	} else if (wipe_cache)
 		PartitionManager.Wipe_By_Path("/cache");
+
+	TWFunc::Dump_Current_Settings();
 
 	return ret_val;
 }
@@ -649,9 +699,11 @@ int OpenRecoveryScript::Run_OpenRecoveryScript_Action() {
 	// that we converted to ORS commands during boot in recovery.cpp.
 	// Run those first.
 	int reboot = 0;
+	int code1 = 0; int code2 = 0; // DJ9 if either of these is set to 3, disable auto-reboot
 	if (TWFunc::Path_Exists(SCRIPT_FILE_TMP)) {
 		gui_msg("running_recovery_commands=Running Recovery Commands");
-		if (OpenRecoveryScript::run_script_file() == 0) {
+		code1 = OpenRecoveryScript::run_script_file();
+		if (code1 == 0) {
 			reboot = 1;
 			op_status = 0;
 		}
@@ -659,18 +711,33 @@ int OpenRecoveryScript::Run_OpenRecoveryScript_Action() {
 	// Check for the ORS file in /cache and attempt to run those commands.
 	if (OpenRecoveryScript::check_for_script_file()) {
 		gui_msg("running_ors=Running OpenRecoveryScript");
-		if (OpenRecoveryScript::run_script_file() == 0) {
+		code2 = OpenRecoveryScript::run_script_file();
+		if (code2 == 0) {
 			reboot = 1;
 			op_status = 0;
 		}
 	}
-	if (reboot) {
-		// Disable stock recovery reflashing
-		TWFunc::Disable_Stock_Recovery_Replace();
-		usleep(2000000); // Sleep for 2 seconds before rebooting
-		TWFunc::tw_reboot(rb_system);
-		usleep(5000000); // Sleep for 5 seconds to allow reboot to occur
-	} else {
+	if (reboot || code1 == 3 || code2 == 3) 
+	   {	  
+    		// have we disabled auto-reboot?
+    		if (code1 == 3 || code2 == 3) 
+       		  { 
+ 		     usleep(1000000); // sleep for 1 second
+          	     op_status = 0;
+			#ifdef OF_DISABLE_ORS_AUTO_REBOOT
+			gui_msg(Msg(msg::kHighlight, "ors_complete=OpenRecovery script completed.\n"));
+			#else
+			gui_msg(Msg(msg::kWarning, "of_ota_reboot_disabled=OTA update completed. You disabled auto-reboot. Returning control to you.\n"));
+			#endif
+          	     DataManager::SetValue("tw_page_done", 1);
+       		  }
+       		else
+       		  {    
+ 		     usleep(2000000); // Sleep for 2 seconds before rebooting
+		     TWFunc::tw_reboot(rb_system);
+		     usleep(5000000); // Sleep for 5 seconds to allow reboot to occur
+		  }
+           } else {
 		DataManager::SetValue("tw_page_done", 1);
 	}
 	return op_status;
@@ -694,12 +761,15 @@ void OpenRecoveryScript::Run_CLI_Command(const char* command) {
 		} else {
 			LOGINFO("Missing parameter: script file name\n");
 		}
-	} else if (cmd_str == "get") {
+	} else if (cmd_str == "get" || cmd_str == "getval") {
 		if (parts.size() > 1) {
 			string varname = parts[1];
 			string value;
 			DataManager::GetValue(varname, value);
-			gui_print("%s = %s\n", varname.c_str(), value.c_str());
+			if (cmd_str == "getval")
+				gui_print("%s\n",value.c_str());
+			else
+				gui_print("%s = %s\n", varname.c_str(), value.c_str());
 		} else {
 			LOGINFO("Missing parameter: var name\n");
 		}
@@ -753,3 +823,15 @@ int OpenRecoveryScript::remountrw(void)
 
 	return op_status;
 }
+
+void OpenRecoveryScript::Run_Fox_Process_After_ORS(int result)
+{
+#ifdef FOX_VANILLA_BUILD
+   LOGINFO("- OrangeFox: DEBUG: skipping the Run_Fox_Process_After_ORS process...\n");
+#else
+   if (TWFunc::JustInstalledMiui())
+   	DataManager::SetValue(FOX_FORCE_DEACTIVATE_PROCESS, 1);
+   Fox_Post_Zip_Install(result);
+#endif
+}
+//
