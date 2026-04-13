@@ -430,19 +430,9 @@ int GUIKeyboard::Render(void)
 			}
 
 			if (&key == currentKey && HasFocus()) {
-	                    gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
-
-	                    const int x = keyX + 2;
-	                    const int y = keyY + 2;
-	                    const int w = keyW - 4;
-	                    const int h = keyH - 4;
-	                    const int thickness = 3;
-
-	                    gr_fill(x, y, w, thickness);
-	                    gr_fill(x, y + h - thickness, w, thickness);
-	                    gr_fill(x, y, thickness, h);
-	                    gr_fill(x + w - thickness, y, thickness, h);
-                        }
+				gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
+				gr_draw_rect(keyX + 2, keyY + 2, keyW - 4, keyH - 4, 3);
+			}
 		}
 	}
 

@@ -2,6 +2,9 @@
 	Copyright 2012 bigbiff/Dees_Troy TeamWin
 	This file is part of TWRP/TeamWin Recovery Project.
 
+	Copyright (C) 2018-2026 OrangeFox Recovery Project
+	This file is part of the OrangeFox Recovery Project.
+
 	TWRP is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation, either version 3 of the License, or
@@ -139,6 +142,9 @@ error:
 }
 
 int InfoManager::SaveValues(void) {
+	if (android::base::GetProperty("ro.twrp.fastbootd", "") == "1") // do not proceed in fastbootd mode
+		return -1;
+
 	if (File.empty())
 		return -1;
 

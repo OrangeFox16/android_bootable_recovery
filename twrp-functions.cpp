@@ -5011,106 +5011,6 @@ bool TWFunc::IsBinaryXML(const std::string filename) {
   return false;
 }
 
-string TWFunc::Check_For_TwrpFolder() {
-	string oldFolder = "";
-	vector<string> customTWRPFolders;
-	string mainPath = DataManager::GetCurrentStoragePath();
-	DIR* d;
-	struct dirent* de;
-
-	if (DataManager::GetIntValue(TW_IS_ENCRYPTED) && DataManager::GetIntValue(TW_CRYPTO_PWTYPE)) {
-		goto exit;
-	}
-
-
-	d = opendir(mainPath.c_str());
-	if (d == NULL) {
-		goto exit;
-	}
-
-	while ((de = readdir(d)) != NULL) {
-		string name = de->d_name;
-		string fullPath = mainPath + '/' + name;
-		unsigned char type = de->d_type;
-
-		if (name == "." || name == "..") continue;
-
-		if (type == DT_UNKNOWN) {
-			type = Get_D_Type_From_Stat(fullPath);
-		}
-
-		if (type == DT_DIR && Path_Exists(fullPath + "/.twrpcf")) {
-			if ('/' + name == TW_DEFAULT_RECOVERY_FOLDER) {
-				oldFolder = name;
-			} else {
-				customTWRPFolders.push_back(name);
-			}
-		}
-	}
-
-	closedir(d);
-
-	if (oldFolder == "" && customTWRPFolders.empty()) {
-		LOGINFO("No recovery folder found. Using default folder.\n");
-		if (android::base::GetProperty(TW_FASTBOOT_MODE_PROP, "0") != "1") {
-			TWPartition* SDCard = PartitionManager.Find_Partition_By_Path(DataManager::GetCurrentStoragePath());
-			if (SDCard->Mount(true)) {
-				mainPath += TW_DEFAULT_RECOVERY_FOLDER;
-				mkdir(mainPath.c_str(), 0777);
-			}
-		}
-		goto exit;
-	} else if (customTWRPFolders.empty()) {
-		LOGINFO("No custom recovery folder found. Using TWRP as default.\n");
-		goto exit;
-	} else {
-		if (customTWRPFolders.size() > 1) {
-			LOGINFO("More than one custom recovery folder found. Using first one from the list.\n");
-		} else {
-			LOGINFO("One custom recovery folder found.\n");
-		}
-		string customPath =  '/' + customTWRPFolders.at(0);
-
-		if (Path_Exists(mainPath + TW_DEFAULT_RECOVERY_FOLDER)) {
-			string oldBackupFolder = mainPath + TW_DEFAULT_RECOVERY_FOLDER + "/BACKUPS/" + DataManager::GetStrValue("device_id");
-			string newBackupFolder = mainPath + customPath + "/BACKUPS/" + DataManager::GetStrValue("device_id");
-
-			if (Path_Exists(oldBackupFolder)) {
-				vector<string> backups;
-				d = opendir(oldBackupFolder.c_str());
-
-				if (d != NULL) {
-					while ((de = readdir(d)) != NULL) {
-						string name = de->d_name;
-						unsigned char type = de->d_type;
-
-						if (name == "." || name == "..") continue;
-
-						if (type == DT_UNKNOWN) {
-							type = Get_D_Type_From_Stat(mainPath + '/' + name);
-						}
-
-						if (type == DT_DIR) {
-							backups.push_back(name);
-						}
-					}
-					closedir(d);
-				}
-
-				for (auto it = backups.begin(); it != backups.end(); it++) {
-					Exec_Cmd("mv -f \"" + oldBackupFolder + '/' + *it + "\" \"" + newBackupFolder + '/' + *it + (Path_Exists(newBackupFolder + '/' + *it) ? "_new\"" : "\""));
-				}
-			}
-			Exec_Cmd("rm -rf \"" + mainPath + TW_DEFAULT_RECOVERY_FOLDER + '\"');
-		}
-
-		return customPath;
-	}
-
-exit:
-	return TW_DEFAULT_RECOVERY_FOLDER;
-}
-
 bool TWFunc::Check_Xml_Format(const std::string filename) {
 	if (TWFunc::IsBinaryXML(filename))
 		return false; // ABX xml format; needs conversion to plain xml
@@ -5177,27 +5077,6 @@ bool TWFunc::Magiskboot_Repack_Patch_VBMeta()
    #else
    return false;
    #endif
-}
-
-
-std::string TWFunc::Get_TWRP_Version_Str() {
-#ifdef FOX_BUILD
-    return std::string(FOX_BUILD);
-#elif defined(TW_VERSION_STR)
-    return std::string(TW_VERSION_STR);
-#else
-    return "16.0";
-#endif
-}
-
-void TWFunc::checkforapp() {
-    // TWRP app compatibility check is obsolete for this tree.
-    return;
-}
-
-int TWFunc::Is_TWRP_App_In_System() {
-    // Stub for compatibility with older OrangeFox/TWRP code.
-    return 0;
 }
 
 void TWFunc::FoxThemeCheck()

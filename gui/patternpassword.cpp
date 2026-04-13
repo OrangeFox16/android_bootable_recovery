@@ -199,19 +199,9 @@ int GUIPatternPassword::Render(void)
 			gr_surface dotCircle = gr_render_circle(mDotRadius + 6, mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
 			gr_blit(dotCircle, 0, 0, gr_get_width(dotCircle), gr_get_height(dotCircle), mDots[mFocusedDotIndex].x - 6, mDots[mFocusedDotIndex].y - 6);
 		} else {
-	            gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
-
-	            const int x = mRenderX - mDotRadius / 2;
-	            const int y = mRenderY - mDotRadius / 2;
-	            const int w = mRenderW + mDotRadius;
-	            const int h = mRenderH + mDotRadius;
-	            const int thickness = 3;
-
-	            gr_fill(x, y, w, thickness);
-	            gr_fill(x, y + h - thickness, w, thickness);
-	            gr_fill(x, y, thickness, h);
-	            gr_fill(x + w - thickness, y, thickness, h);
-                }
+			gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
+			gr_draw_rect(mRenderX - mDotRadius / 2, mRenderY - mDotRadius / 2, mRenderW + mDotRadius, mRenderH + mDotRadius, 3);
+		}
 	}
 
 	gr_color(mLineColor.red, mLineColor.green, mLineColor.blue, mLineColor.alpha);

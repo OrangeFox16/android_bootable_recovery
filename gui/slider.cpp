@@ -155,19 +155,9 @@ int GUISlider::Render(void)
 	}
 
 	if (HasFocus()) {
-	    gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
-
-	    const int x = mRenderX + 2;
-	    const int y = mRenderY + 2;
-	    const int w = mRenderW - 4;
-	    const int h = mRenderH - 4;
-	    const int thickness = 3;
-
-	    gr_fill(x, y, w, thickness);
-	    gr_fill(x, y + h - thickness, w, thickness);
-	    gr_fill(x, y, thickness, h);
-	    gr_fill(x + w - thickness, y, thickness, h);
-        }
+		gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
+		gr_draw_rect(mRenderX + 2, mRenderY + 2, mRenderW - 4, mRenderH - 4, 3);
+	}
 
 	sUpdate = 0;
 	return 0;

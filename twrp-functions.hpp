@@ -80,9 +80,6 @@ public:
 	static bool Path_Exists(string Path);                                       // Returns true if the path exists
 	static bool Is_SymLink(string Path);                                        // Returns true if the path exists and is a symbolic link	
 	static Archive_Type Get_File_Type(string fn);                               // Determines file type, 0 for unknown, 1 for gzip, 2 for OAES encrypted
-	static std::string Get_TWRP_Version_Str();
-	static void checkforapp();
-	static int Is_TWRP_App_In_System();
 	static int Try_Decrypting_File(string fn, string password); 		    // -1 for some error, 0 for failed to decrypt, 1 for decrypted, 3 for decrypted and found gzip format
 	static unsigned long Get_File_Size(const string& Path);                     // Returns the size of a file
 	static std::string Remove_Trailing_Slashes(const std::string& path, bool leaveLast = false); // Normalizes the path, e.g /data//media/ -> /data/media
@@ -237,7 +234,6 @@ public:
 	static long string_to_long(string String, long def_value);
 	static uint64_t string_to_long(string String, uint64_t def_value);
 	static string sdknum_to_text(int sdk);
-	static string Check_For_TwrpFolder();
 	static void FoxThemeCheck();
 	static bool IsRecoveryOverwritten(bool only_update = false);
 

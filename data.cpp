@@ -1707,12 +1707,6 @@ void DataManager::Vibrate(const string& varName)
 #endif
 }
 
-void DataManager::LoadTWRPFolderInfo(void)
-{
-	SetValue(TW_RECOVERY_FOLDER_VAR, TWFunc::Check_For_TwrpFolder());
-	mBackingFile = string(TW_PERSIST_DIR) + '/' + TW_SETTINGS_FILE;
-}
-
 #ifdef OF_CLASSIC_LEDS_FUNCTION
 // use R9.x Leds function
 void DataManager::Leds(bool enable)

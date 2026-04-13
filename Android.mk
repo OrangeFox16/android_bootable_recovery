@@ -1,5 +1,8 @@
 # Copyright (C) 2007 The Android Open Source Project
 #
+# This file is part of the OrangeFox Recovery Project
+# Copyright (C) 2018-2026 The OrangeFox Recovery Project
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -100,7 +103,7 @@ LOCAL_MODULE := recovery
 RECOVERY_API_VERSION := 3
 RECOVERY_FSTAB_VERSION := 2
 LOCAL_CFLAGS += -DRECOVERY_API_VERSION=$(RECOVERY_API_VERSION)
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-unused-function
+LOCAL_CFLAGS += -Wno-unused-parameter -Wno-unused-function -Wno-unused-but-set-variable -Wno-misleading-indentation
 LOCAL_CLANG := true
 
 LOCAL_C_INCLUDES += \
@@ -694,6 +697,7 @@ LOCAL_POST_INSTALL_CMD += \
     sed -i "s/{themeversion}/$(TW_THEME_VERSION)/" $(TARGET_RECOVERY_ROOT_OUT)/twres/splash.xml; \
     sed -i "s/{themeversion}/$(TW_THEME_VERSION)/" $(TARGET_RECOVERY_ROOT_OUT)/twres/ui.xml;
 # Darth 9
+
 include $(BUILD_EXECUTABLE)
 
 # Symlink for file_contexts
@@ -716,6 +720,7 @@ ifeq ($(FOX_USE_NANO_EDITOR),1)
 	cp -rf $(TARGET_OUT_ETC)/nano $(TARGET_RECOVERY_ROOT_OUT)/system/etc/; \
 	cp -rf external/libncurses/lib/terminfo $(TARGET_RECOVERY_ROOT_OUT)/system/etc/;
 endif
+
 # deal with "cannot delete non-empty directory: root/vendor" errors
 ifeq ($(OF_MANUAL_ROOT_VENDOR_ERROR_FIX),1)
 LOCAL_POST_INSTALL_CMD += \

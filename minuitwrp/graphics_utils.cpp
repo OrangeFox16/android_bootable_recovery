@@ -1,6 +1,9 @@
 /*
  * Copyright (C) 2007 The Android Open Source Project
  *
+ * Copyright (C) 2018-2025 OrangeFox Recovery Project
+ * This file is part of the OrangeFox Recovery Project.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -180,4 +183,15 @@ void surface_ROTATION_transform(gr_surface dst_ptr, const gr_surface src_ptr,
     } else if (num_bytes_per_pixel == 1) {
         DO_MATRIX_ROTATION(8, 1);
     }
+}
+
+void gr_draw_rect(int x, int y, int w, int h, int thickness) {
+    // Top border
+    gr_line(x, y, x + w - 1, y, thickness);
+    // Left border
+    gr_line(x, y, x, y + h - 1, thickness);
+    // Right border
+    gr_line(x + w - 1, y, x + w - 1, y + h - 1, thickness);
+    // Bottom border
+    gr_line(x, y + h - 1, x + w - 1, y + h - 1, thickness);
 }

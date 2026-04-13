@@ -1,6 +1,7 @@
 #include "kernel_module_loader.hpp"
 #include "common.h"
 #include "variables.h"
+#include "data.hpp"
 
 #ifdef TW_INCLUDE_CRYPTO
 #include <android-base/file.h>
@@ -78,6 +79,8 @@ bool KernelModuleLoader::Load_Vendor_Modules() {
 	module_dirs.push_back(base_dir + gki);
 	vendor_module_dirs.push_back(vendor_base_dir + gki);
 #endif
+
+	TWFunc::RunFoxScript("/system/bin/beforemodules.sh", "");
 
 	switch(Get_Boot_Mode()) {
 		case RECOVERY_FASTBOOT_MODE:
@@ -164,6 +167,9 @@ exit:
 	if (sysroot)
 		sysroot->UnMount(false);
 #endif
+
+	if (modules_loaded == 0)
+		DataManager::SetValue("of_request_switch_control_mode" , "1");
 
 	android::base::SetProperty(TW_MODULES_MOUNTED_PROP, "true");
 

@@ -134,19 +134,9 @@ int GUICheckbox::Render(void)
 		ret = mLabel->Render();
 
 	if (HasFocus()) {
-	    gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
-
-	    const int x = mRenderX - 2;
-	    const int y = mRenderY - 2;
-	    const int w = mCheckW + 4;
-	    const int h = mCheckH + 4;
-	    const int thickness = 3;
-
-	    gr_fill(x, y, w, thickness);
-	    gr_fill(x, y + h - thickness, w, thickness);
-	    gr_fill(x, y, thickness, h);
-	    gr_fill(x + w - thickness, y, thickness, h);
-        }
+		gr_color(mFocusColor.red, mFocusColor.green, mFocusColor.blue, mFocusColor.alpha);
+		gr_draw_rect(mRenderX - 2, mRenderY - 2, mCheckW + 4, mCheckH + 4, 3);
+	}
 
 	mLastState = lastState;
 	mRendered = true;

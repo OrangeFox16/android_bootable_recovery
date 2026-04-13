@@ -2,7 +2,7 @@
 	Copyright 2014 to 2021 TeamWin
 	This file is part of TWRP/TeamWin Recovery Project.
 
-	Copyright (C) 2018-2025 OrangeFox Recovery Project
+	Copyright (C) 2018-2026 OrangeFox Recovery Project
 	This file is part of the OrangeFox Recovery Project.
 
 	TWRP is free software: you can redistribute it and/or modify
@@ -2085,7 +2085,6 @@ void TWPartitionManager::Update_System_Details(void) {
 			if ((*iter)->Mount_Point == Get_Android_Root_Path()) {
 				int backup_display_size = (int)((*iter)->Backup_Size / 1048576LLU);
 				DataManager::SetValue(TW_BACKUP_SYSTEM_SIZE, backup_display_size);
-				//TWFunc::Is_TWRP_App_In_System();
 			} else if ((*iter)->Mount_Point == "/data" || (*iter)->Mount_Point == "/datadata") {
 				data_size += (int)((*iter)->Backup_Size / 1048576LLU);
 			} else if ((*iter)->Mount_Point == "/cache") {
