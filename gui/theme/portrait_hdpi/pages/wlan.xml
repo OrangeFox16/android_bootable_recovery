@@ -14,7 +14,7 @@
 				<placement x="0" y="%ab_h%" w="%screen_w%" h="%files_np_w%"/>
 
 		<listitem name="{@wlan_start}">
-					<icon res="info"/>
+					<icon res="wlan_start"/>
 					<action function="page">wlan</action>
 					<action function="overlay">console</action>
 					<action function="terminalcommand">wlan_start</action>

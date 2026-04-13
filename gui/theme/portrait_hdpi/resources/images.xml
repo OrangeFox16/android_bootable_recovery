@@ -104,6 +104,7 @@
 		<image name="sdcard" filename="Default/Icons/sdcard" retainaspect="1"/>
 		<image name="batch" filename="Default/Icons/batch" retainaspect="1"/>
 		<image name="edit" filename="Default/Icons/edit" retainaspect="1"/>
+		<image name="wlan_start" filename="Default/Icons/wlan_start" retainaspect="1"/>
 
 		<!-- Info -->
 		<image name="icon_warning" filename="Default/Info/icon_warning" retainaspect="1"/>
