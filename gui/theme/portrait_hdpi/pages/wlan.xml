@@ -39,15 +39,29 @@
 					<action function="page">wlan</action>
 					<action function="overlay">console</action>
 					<action function="terminalcommand">
-					echo "Trying test net connection with ping bing.com ..."
-					echo "=============Ping bing.com==========="
+					info=$(ifconfig wlan0 2>/dev/null || ifconfig -a wlan0 2>/dev/null)
+					ipv4=$(echo "$info" | grep -oE 'inet addr:[0-9.]+' | cut -d: -f2)
+
+					echo "============Network test============="
 					echo " "
-					busybox ping -w 4 bing.com
-					echo " "
-					echo "====================================="
-					echo " "
-					echo " "
-					echo " "</action>
+
+					if [ -z "$info" ] || [ -z "$ipv4" ]; then
+						echo "Not connected to a Wi-Fi"
+						echo " "
+						echo "====================================="
+						echo " "
+						echo " "
+						echo " "
+					else
+						echo " "
+						echo " "
+						busybox ping -w 4 bing.com
+						echo " "
+						echo "====================================="
+						echo " "
+						echo " "
+						echo " "
+					fi</action>
 				</listitem>
             </listbox>
 
