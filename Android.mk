@@ -317,6 +317,7 @@ ifneq ($(TW_NO_NETWORK), true)
         microhttpd \
         index.html \
         microhttpd.rc \
+        fox_icon.png \
         ttyd \
         ttyd.rc \
         wlan_start \
