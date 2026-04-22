@@ -35,6 +35,6 @@ public:
 private:
 	std::string unzipImage(std::string file);
 	bool mountApexOnLoopbackDevices(std::vector<std::string> apexFiles);
-	bool loadApexImage(std::string fileToMount, size_t loop_device_number);
+	bool loadApexImage(std::string fileToMount, int loop_num);
 };
 #endif
